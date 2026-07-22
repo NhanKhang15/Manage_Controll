@@ -1,0 +1,88 @@
+# ==========================================
+# 1. AI Agent / Skills & Tooling (Agents / Gemini / Cursor)
+# ==========================================
+.agents/
+.gemini/
+.claude/
+.cursor/
+skills-lock.json
+
+# ==========================================
+# 2. Dependencies & Package Managers
+# ==========================================
+node_modules/
+**/node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+yarn-debug.log*
+yarn-error.log*
+npm-debug.log*
+pnpm-debug.log*
+
+# ==========================================
+# 3. Build Artifacts, Compiled Classes & Binary Files
+# ==========================================
+dist/
+dist-ssr/
+build/
+out/
+target/
+bin/
+obj/
+
+# Compiled Java / C / C++ / Python classes & binaries
+*.class
+*.pyc
+*.pyo
+__pycache__/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ==========================================
+# 4. Logs & Environment / Secrets
+# ==========================================
+logs/
+*.log
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+
+# ==========================================
+# 5. IDE, Editors & OS Files
+# ==========================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.tmp
+
+# System files (Windows / macOS)
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ==========================================
+# 6. Temporary & Dump files
+# ==========================================
+*.tmp
+*.bak
+*.swp
+*.html
+!Frontend/index.html
+raw-html/
