@@ -1,27 +1,70 @@
 import { useState } from "react";
+import { ViewMode } from "gantt-task-react";
 import { AppShellPage } from "../layout/AppShellPage";
-import { ProjectHeader } from "../features/projects/ProjectHeader";
-import { ProjectKpiGrid } from "../features/projects/ProjectKpiGrid";
-import { ProjectGrid } from "../features/projects/ProjectGrid";
+import { ProjectViewTabs, type ProjectViewMode } from "../features/projects/ProjectViewTabs";
+import { ProjectSelector } from "../features/projects/ProjectSelector";
+import { KanbanBoard } from "../features/projects/KanbanBoard";
+import { ProjectGantt } from "../features/projects/ProjectGantt";
+import { ProjectMindmap } from "../features/projects/ProjectMindmap";
+import { ProjectTaskList } from "../features/projects/ProjectTaskList";
+import { WorkspaceBrowser } from "../features/projects/Workspace/WorkspaceBrowser";
+import { AssignmentTree } from "../features/projects/AssignmentTree";
 import { useToast } from "../components/ui/Toast";
-import { mockProjects, type ProjectMockItem } from "../mocks/projects";
+import { mockProjects } from "../mocks/projects";
+import { projectTasks } from "../mocks/projectTasks";
 
 export function ProjectsPage() {
-  const [projects] = useState<ProjectMockItem[]>(mockProjects);
+  const [view, setView] = useState<ProjectViewMode>("folder");
+  const [selectedProjectId, setSelectedProjectId] = useState(mockProjects[0].id);
   const { showToast } = useToast();
 
-  const runningCount = projects.filter((p) => p.status === "running").length;
-  const completedCount = projects.filter((p) => p.status === "completed").length;
-  const delayedCount = projects.filter((p) => p.status === "delayed").length;
+  const selectedProject = mockProjects.find((p) => p.id === selectedProjectId) ?? mockProjects[0];
+  const tasksOfSelected = projectTasks.filter((t) => t.projectId === selectedProject.id);
 
   return (
     <AppShellPage initialNavId="projects">
-      <ProjectHeader onCreateProject={() => showToast("Đang mở form tạo dự án mới...", "default")} />
-      <ProjectKpiGrid runningCount={runningCount} completedCount={completedCount} delayedCount={delayedCount} />
-      <ProjectGrid
-        projects={projects}
-        onSelectProject={(proj) => showToast(`Xem chi tiết dự án: ${proj.name}`, "default")}
-      />
+      <div className="page-head">
+        <h1>Dự án</h1>
+        <ProjectViewTabs view={view} onChangeView={setView} />
+      </div>
+
+      {view === "folder" && <WorkspaceBrowser projects={mockProjects} tasks={projectTasks} />}
+
+      {view === "assignment" && <AssignmentTree />}
+
+      {view !== "folder" && view !== "assignment" && (
+        <>
+          <ProjectSelector projects={mockProjects} selectedId={selectedProject.id} onChange={setSelectedProjectId} />
+
+          {view === "kanban" && (
+            <KanbanBoard
+              tasks={tasksOfSelected}
+              onSelectTask={(t) => showToast(`Xem chi tiết công việc: ${t.title}`, "default")}
+            />
+          )}
+          {view === "timeline" && (
+            <ProjectGantt
+              tasks={tasksOfSelected}
+              viewMode={ViewMode.Week}
+              onSelectTask={(t) => showToast(`Xem chi tiết công việc: ${t.title}`, "default")}
+            />
+          )}
+          {view === "roadmap" && (
+            <ProjectGantt
+              tasks={tasksOfSelected}
+              viewMode={ViewMode.Month}
+              onSelectTask={(t) => showToast(`Xem chi tiết công việc: ${t.title}`, "default")}
+            />
+          )}
+          {view === "mindmap" && <ProjectMindmap project={selectedProject} tasks={tasksOfSelected} />}
+          {view === "list" && (
+            <ProjectTaskList
+              tasks={tasksOfSelected}
+              onSelectTask={(t) => showToast(`Xem chi tiết công việc: ${t.title}`, "default")}
+            />
+          )}
+        </>
+      )}
     </AppShellPage>
   );
 }

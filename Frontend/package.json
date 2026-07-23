@@ -18,6 +18,7 @@
     "@xyflow/react": "^12.11.2",
     "gantt-task-react": "^0.3.9",
     "react": "^19.2.7",
+    "react-arborist": "^3.15.1",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1"
   },

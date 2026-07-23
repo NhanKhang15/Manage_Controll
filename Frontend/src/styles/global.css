@@ -2264,3 +2264,336 @@ code {
   color: #fff;
   border-color: var(--brand)
 }
+
+/* ===== Trang Dự án — view Thư mục (workspace browser). CSS gốc tham
+   chiếu: .drive-bar, .workspace, .wk-*, .proj-rev-row, .proj-members,
+   .member-chip, .proj-thread, .cl-cmt-form. Riêng .proj-cmt-* là mới
+   (form comment gốc chỉ có trạng thái rỗng trong HTML capture). ===== */
+.drive-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--brand-soft);
+  border: 1px solid #DBE1FE;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13.5px;
+  color: #3730A3;
+  flex-wrap: wrap
+}
+
+.drive-ico {
+  font-size: 18px
+}
+
+.drive-bar .btn {
+  margin-left: auto
+}
+
+.workspace {
+  margin-top: 4px
+}
+
+.wk-cols {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  align-items: flex-start
+}
+
+.wk-col {
+  flex: 0 0 232px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 8px;
+  max-height: 70vh;
+  overflow: auto
+}
+
+.wk-col-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted-2);
+  padding: 6px 8px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.wk-add {
+  border: none;
+  background: none;
+  color: var(--muted-2);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 6px;
+  border-radius: 6px;
+  flex: none
+}
+
+.wk-add:hover {
+  background: var(--brand-soft);
+  color: var(--brand)
+}
+
+.wk-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 9px;
+  border-radius: 9px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 13px;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit
+}
+
+.wk-item:hover {
+  background: var(--line-2)
+}
+
+.wk-item.on {
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 600
+}
+
+.wk-ico {
+  flex: none;
+  font-size: 14px
+}
+
+.wk-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none
+}
+
+.wk-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.wk-due {
+  font-size: 11px;
+  white-space: nowrap
+}
+
+.wk-due.danger {
+  color: var(--danger);
+  font-weight: 600
+}
+
+.wk-pct {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600
+}
+
+.wk-chev {
+  color: var(--muted-2);
+  flex: none
+}
+
+.wk-detail {
+  flex: 0 0 340px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+  max-height: 74vh;
+  overflow: auto
+}
+
+.wk-d-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 12px
+}
+
+.wk-d-ico {
+  font-size: 22px
+}
+
+.wk-d-crumb {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 2px
+}
+
+.wk-d-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+  line-height: 1.25
+}
+
+.wk-d-sec {
+  margin-bottom: 16px
+}
+
+.wk-d-lbl {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 6px
+}
+
+.wk-d-pct {
+  color: var(--brand);
+  float: right
+}
+
+.wk-d-notes {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.6;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px
+}
+
+.a-progress.big {
+  width: 100%;
+  height: 8px;
+  margin: 10px 0
+}
+
+.proj-stat-line {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 8px
+}
+
+.proj-rev-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap
+}
+
+.proj-rev-row input {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  width: 170px
+}
+
+.proj-rev-fmt {
+  font-weight: 600
+}
+
+.proj-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px
+}
+
+.member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 4px 12px 4px 4px;
+  font-size: 13px
+}
+
+.proj-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 220px;
+  overflow: auto;
+  margin-bottom: 8px
+}
+
+.proj-cmt-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start
+}
+
+.proj-cmt-body {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px
+}
+
+.proj-cmt-head {
+  font-size: 12px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline
+}
+
+.proj-cmt-text {
+  font-size: 13.5px;
+  line-height: 1.5
+}
+
+.cl-cmt-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end
+}
+
+.cl-cmt-form textarea {
+  flex: 1;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13.5px;
+  background: var(--bg);
+  color: var(--text)
+}
+
+@media (max-width:900px) {
+  .wk-detail {
+    flex: 0 0 280px
+  }
+}
+
+@media (max-width:640px) {
+  .wk-cols {
+    flex-direction: column
+  }
+
+  .wk-col,
+  .wk-detail {
+    flex: 1 1 auto;
+    width: 100%;
+    max-height: none
+  }
+}

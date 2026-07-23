@@ -1,4 +1,4 @@
-export type ProjectViewMode = "folder" | "kanban" | "timeline" | "roadmap" | "mindmap" | "list";
+export type ProjectViewMode = "folder" | "kanban" | "timeline" | "roadmap" | "mindmap" | "list" | "assignment";
 
 const VIEWS: { key: ProjectViewMode; label: string }[] = [
   { key: "folder", label: "🗂️ Thư mục" },
@@ -7,6 +7,7 @@ const VIEWS: { key: ProjectViewMode; label: string }[] = [
   { key: "roadmap", label: "🗺️ Lộ trình" },
   { key: "mindmap", label: "🧠 Mindmap" },
   { key: "list", label: "▤ Danh sách" },
+  { key: "assignment", label: "🧩 Phân công" },
 ];
 
 /**
