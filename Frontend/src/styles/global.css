@@ -2597,3 +2597,140 @@ code {
     max-height: none
   }
 }
+
+/* ===== Trang Sự kiện / Wiki / OKR / Chấm giờ — mới, không có trong HTML
+   gốc (chỉ có state rỗng khi capture). ===== */
+.ev-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px
+}
+
+.ev-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--panel);
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit
+}
+
+.ev-card:hover {
+  border-color: var(--brand);
+  box-shadow: var(--shadow)
+}
+
+.ev-card-banner {
+  height: 120px
+}
+
+.ev-card-body {
+  padding: 12px 14px
+}
+
+.ev-card-time {
+  font-size: 12px;
+  color: var(--brand);
+  font-weight: 600
+}
+
+.ev-card-title {
+  font-weight: 700;
+  font-size: 16px;
+  margin: 3px 0
+}
+
+.wiki-page-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px 5px 10px;
+  border-radius: 8px;
+  color: inherit;
+  font-size: 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 2px
+}
+
+.wiki-page-item:hover {
+  background: var(--line-2)
+}
+
+.wiki-page-item.on {
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 600
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px
+}
+
+.settings-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted)
+}
+
+.settings-form input,
+.settings-form select,
+.settings-form textarea {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text)
+}
+
+.settings-form input:focus,
+.settings-form select:focus,
+.settings-form textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft)
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px
+}
+
+.tbl th {
+  text-align: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-2);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12.5px
+}
+
+.tbl td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-2)
+}
+
+.tbl tr:last-child td {
+  border-bottom: none
+}
+
+.kr-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px
+}
