@@ -1,17 +1,17 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Tree, getTreeLinePrefix, type NodeRendererProps } from "react-arborist";
+import {
+  getCompaniesTree,
+  createCompanyWithFolder,
+  deleteCompany,
+  type TreeNode,
+  type NodeType,
+} from "../../api/companies";
+import { createProject, deleteProject } from "../../api/projects";
+import { createTask, updateTask, reorderTasks, deleteTask } from "../../api/tasks";
+import { CreateCompanyModal } from "./CreateCompanyModal";
 
-export type NodeType = "company" | "project" | "task";
-
-export interface TreeNode {
-  id: string;
-  type: NodeType;
-  name: string;
-  status?: string;
-  childCount?: string;
-  completed?: boolean;
-  children?: TreeNode[];
-}
+export type { NodeType, TreeNode };
 
 const TYPE_ICON: Record<NodeType, string> = { company: "🏢", project: "📄", task: "☰" };
 
@@ -24,84 +24,6 @@ const STATUS_COLOR: Record<string, string> = {
   "Định nghĩa": "#F59E0B",
   "R&D": "#F59E0B",
 };
-
-let uid = 1000;
-function genId(prefix: string): string {
-  uid += 1;
-  return `${prefix}-${uid}`;
-}
-
-const initialData: TreeNode[] = [
-  {
-    id: "co-1",
-    type: "company",
-    name: "Đất Việt Group",
-    childCount: "2 công ty con",
-    children: [
-      {
-        id: "co-1-1",
-        type: "company",
-        name: "Đất Việt Miền Nam",
-        childCount: "2 dự án",
-        children: [
-          {
-            id: "pr-1",
-            type: "project",
-            name: "Sky Garden (500 căn hộ)",
-            status: "Triển khai",
-            childCount: "3 công việc",
-            children: [
-              { id: "tk-1", type: "task", name: "Chuẩn bị bảng giá bán", status: "Hoàn thành", completed: true },
-              { id: "tk-2", type: "task", name: "Duyệt mẫu banner quảng cáo", status: "Đang làm", completed: false },
-              { id: "tk-3", type: "task", name: "Ký hợp đồng đại lý phân phối", status: "Cần làm", completed: false },
-            ],
-          },
-          {
-            id: "pr-2",
-            type: "project",
-            name: "Sunrise Riverside",
-            status: "Đề xuất & Chọn",
-            childCount: "1 công việc",
-            children: [{ id: "tk-4", type: "task", name: "Khảo sát nhu cầu khách hàng", status: "Cần làm", completed: false }],
-          },
-        ],
-      },
-      {
-        id: "co-1-2",
-        type: "company",
-        name: "Đất Việt Miền Bắc",
-        childCount: "1 dự án",
-        children: [
-          {
-            id: "pr-3",
-            type: "project",
-            name: "Golden Bay",
-            status: "Định nghĩa",
-            childCount: "1 công việc",
-            children: [{ id: "tk-5", type: "task", name: "Khảo sát thị trường khu vực", status: "Đang làm", completed: false }],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "co-2",
-    type: "company",
-    name: "An Gia Land",
-    childCount: "2 dự án",
-    children: [
-      { id: "pr-4", type: "project", name: "Ánh Dương Residence", status: "R&D", children: [] },
-      {
-        id: "pr-5",
-        type: "project",
-        name: "Lakeview City",
-        status: "Triển khai",
-        childCount: "1 công việc",
-        children: [{ id: "tk-6", type: "task", name: "Lập kế hoạch truyền thông ra mắt", status: "Cần làm", completed: false }],
-      },
-    ],
-  },
-];
 
 function suffixFor(childType: NodeType): string {
   return childType === "company" ? "công ty con" : childType === "project" ? "dự án" : "công việc";
@@ -214,52 +136,137 @@ function CountTag({ label }: { label: string }) {
 const iconBtnStyle: CSSProperties = { background: "none", border: "none", cursor: "pointer", color: "var(--muted-2)", padding: 4, fontSize: 14 };
 const linkBtnStyle: CSSProperties = { background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" };
 
-/**
- * AssignmentTree
- * Tab "Phân công" — cây Group > Công ty con > Dự án > Công việc, kéo-thả
- * công việc giữa các dự án (react-arborist). Toàn bộ logic + mock data gói
- * trong 1 file theo yêu cầu.
- */
 export function AssignmentTree() {
-  const [data, setData] = useState<TreeNode[]>(initialData);
+  const [data, setData] = useState<TreeNode[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreatingCompany, setIsCreatingCompany] = useState<boolean>(false);
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
-  function handleAdd(parent: TreeNode, type: NodeType) {
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    setError(null);
+    getCompaniesTree()
+      .then((tree) => {
+        if (isMounted) {
+          setData(recomputeCounts(tree));
+          setLoading(false);
+        }
+      })
+      .catch((err: any) => {
+        if (isMounted) {
+          setError(err.message || "Không thể tải danh sách cây dự án");
+          setLoading(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  function handleCreateCompanySuccess(newCompany: any) {
+    const newNode: TreeNode = {
+      ...newCompany,
+      type: "company",
+      children: [],
+    };
+    setData((prev) => recomputeCounts([...prev, newNode]));
+    setHighlightId(newCompany.id);
+    setTimeout(() => setHighlightId(null), 2000);
+  }
+
+  async function handleAdd(parent: TreeNode, type: NodeType) {
     const label = type === "company" ? "công ty con" : type === "project" ? "dự án" : "công việc";
     const name = window.prompt(`Tên ${label} mới:`);
     if (!name || !name.trim()) return;
-    const node: TreeNode = {
-      id: genId(type),
-      type,
-      name: name.trim(),
-      status: type === "task" ? "Cần làm" : undefined,
-      completed: type === "task" ? false : undefined,
-      children: type === "task" ? undefined : [],
-    };
-    setData((prev) => recomputeCounts(addChildTo(prev, parent.id, node)));
+
+    setError(null);
+
+    if (type === "company") {
+      setIsCreatingCompany(true);
+      try {
+        const newNode = await createCompanyWithFolder({ name: name.trim(), parent_id: parent.id });
+        setData((prev) => recomputeCounts(addChildTo(prev, parent.id, newNode)));
+        setHighlightId(newNode.id);
+        setTimeout(() => setHighlightId(null), 2000);
+      } catch (err: any) {
+        setError(err.message || "Không thể tạo công ty mới");
+      } finally {
+        setIsCreatingCompany(false);
+      }
+    } else if (type === "project") {
+      try {
+        const newNode = await createProject({ company_id: parent.id, name: name.trim() });
+        setData((prev) => recomputeCounts(addChildTo(prev, parent.id, newNode)));
+      } catch (err: any) {
+        setError(err.message || "Không thể tạo dự án mới");
+      }
+    } else if (type === "task") {
+      try {
+        const newNode = await createTask({ project_id: parent.id, name: name.trim() });
+        setData((prev) => recomputeCounts(addChildTo(prev, parent.id, newNode)));
+      } catch (err: any) {
+        setError(err.message || "Không thể tạo công việc mới");
+      }
+    }
   }
 
-  function handleDelete(node: TreeNode) {
+  async function handleDelete(node: TreeNode) {
     if (!window.confirm(`Xoá "${node.name}"? Các mục con bên trong cũng sẽ bị xoá.`)) return;
-    setData((prev) => recomputeCounts(deleteNode(prev, node.id)));
+    setError(null);
+    try {
+      if (node.type === "company") {
+        await deleteCompany(node.id);
+      } else if (node.type === "project") {
+        await deleteProject(node.id);
+      } else if (node.type === "task") {
+        await deleteTask(node.id);
+      }
+      setData((prev) => recomputeCounts(deleteNode(prev, node.id)));
+    } catch (err: any) {
+      setError(err.message || "Xoá không thành công");
+    }
   }
 
   function handleToggleTask(node: TreeNode) {
+    setError(null);
+    const snapshot = data;
+    const nextCompleted = !node.completed;
     setData((prev) => toggleTask(prev, node.id));
+
+    updateTask(node.id, {
+      is_completed: nextCompleted,
+      status: nextCompleted ? "Hoàn thành" : "Cần làm",
+    }).catch((err: any) => {
+      setData(snapshot);
+      setError(err.message || "Cập nhật công việc thất bại");
+    });
   }
 
   function handleMove({ dragIds, parentId, index }: { dragIds: string[]; parentId: string | null; index: number }) {
     if (!parentId) return;
-    setData((prev) => {
-      let working = prev;
-      dragIds.forEach((id, i) => {
-        const { removed, nodes } = removeNodeDeep(working, id);
-        working = nodes;
-        if (removed) {
-          working = insertNodeAt(working, parentId, index + i, removed);
-          console.log(`Cập nhật project_id cho công việc "${removed.name}" -> ${parentId}`);
-        }
-      });
-      return recomputeCounts(working);
+    setError(null);
+    const snapshot = data;
+
+    let working = data;
+    dragIds.forEach((id, i) => {
+      const { removed, nodes } = removeNodeDeep(working, id);
+      working = nodes;
+      if (removed) {
+        working = insertNodeAt(working, parentId, index + i, removed);
+      }
+    });
+    setData(recomputeCounts(working));
+
+    reorderTasks({
+      taskIds: dragIds,
+      newProjectId: parentId,
+      newIndex: index,
+    }).catch((err: any) => {
+      setData(snapshot);
+      setError(err.message || "Kéo-thả sắp xếp thất bại");
     });
   }
 
@@ -268,19 +275,17 @@ export function AssignmentTree() {
     const isTask = item.type === "task";
     const canToggle = !isTask && !!item.children && item.children.length > 0;
     const linePrefix = getTreeLinePrefix(node, { last: "└─ ", middle: "├─ ", pipe: "│  ", blank: "   " });
+    const isHighlighted = item.id === highlightId;
 
     return (
       <div
         ref={isTask ? dragHandle : undefined}
+        className={`flex items-center gap-1.5 h-full px-3 rounded-lg transition-colors duration-1000 ${
+          isHighlighted ? "bg-yellow-50" : node.willReceiveDrop ? "bg-[var(--brand-soft)]" : "bg-transparent"
+        }`}
         style={{
           ...style,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
           height: "100%",
-          padding: "0 12px",
-          background: node.willReceiveDrop ? "var(--brand-soft)" : "transparent",
-          borderRadius: 8,
         }}
       >
         {linePrefix && (
@@ -331,13 +336,14 @@ export function AssignmentTree() {
           <>
             <button
               type="button"
-              style={linkBtnStyle}
+              disabled={isCreatingCompany}
+              style={{ ...linkBtnStyle, opacity: isCreatingCompany ? 0.5 : 1 }}
               onClick={(e) => {
                 e.stopPropagation();
                 handleAdd(item, "company");
               }}
             >
-              + Công ty con
+              {isCreatingCompany ? "+ Đang tạo..." : "+ Công ty con"}
             </button>
             <button
               type="button"
@@ -394,22 +400,70 @@ export function AssignmentTree() {
   }
 
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: 8 }}>
-      <Tree<TreeNode>
-        data={data}
-        onMove={handleMove}
-        idAccessor="id"
-        childrenAccessor="children"
-        openByDefault
-        width="100%"
-        height={620}
-        rowHeight={38}
-        indent={0}
-        disableDrag={(item) => item.type !== "task"}
-        disableDrop={({ parentNode }) => !parentNode?.data || parentNode.data.type !== "project"}
-      >
-        {Row}
-      </Tree>
+    <div>
+      {/* Toolbar */}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-lg font-semibold text-gray-900">Quản lý Công ty / Dự án</h1>
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-800 flex items-center gap-1.5 cursor-pointer"
+        >
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Tạo công ty
+        </button>
+      </div>
+
+      {/* Tree Card */}
+      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: 8 }}>
+        {error && (
+          <div
+            style={{
+              color: "#EF4444",
+              fontSize: 13,
+              padding: "6px 12px",
+              marginBottom: 8,
+              background: "#FEF2F2",
+              borderRadius: 6,
+              border: "1px solid #FCA5A5",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontSize: 14 }}>
+            Đang tải dữ liệu từ máy chủ...
+          </div>
+        ) : (
+          <Tree<TreeNode>
+            data={data}
+            onMove={handleMove}
+            idAccessor="id"
+            childrenAccessor="children"
+            openByDefault
+            width="100%"
+            height={620}
+            rowHeight={38}
+            indent={0}
+            disableDrag={(item) => item.type !== "task"}
+            disableDrop={({ parentNode }) => !parentNode?.data || parentNode.data.type !== "project"}
+          >
+            {Row}
+          </Tree>
+        )}
+      </div>
+
+      {/* Create Company Modal */}
+      <CreateCompanyModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSuccess={handleCreateCompanySuccess}
+      />
     </div>
   );
 }

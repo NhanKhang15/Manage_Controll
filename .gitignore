@@ -55,6 +55,10 @@ logs/
 .env.production.local
 *.pem
 *.key
+recovery-codes.txt
+
+# Google service account credentials
+map-test-457814-c86683153f9a.json
 
 # ==========================================
 # 5. IDE, Editors & OS Files
