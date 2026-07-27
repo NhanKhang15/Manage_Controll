@@ -13,6 +13,9 @@ import { OkrPage } from "./app/OkrPage";
 import { TimeTrackingPage } from "./app/TimeTrackingPage";
 import { GenericPage } from "./app/GenericPage";
 
+import { ClientsPage } from "./app/ClientsPage";
+import { PeoplePage } from "./app/PeoplePage";
+
 function App() {
   return (
     <ToastProvider>
@@ -28,6 +31,8 @@ function App() {
         <Route path="/wiki" element={<WikiPage />} />
         <Route path="/okr" element={<OkrPage />} />
         <Route path="/time" element={<TimeTrackingPage />} />
+        <Route path="/clients" element={<ClientsPage />} />
+        <Route path="/people" element={<PeoplePage />} />
         <Route path="/:pageId" element={<GenericPage />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>

@@ -18,13 +18,11 @@ export interface TopbarRightProps {
   online?: boolean;
 }
 
-export function TopbarRight({ currentLang, onChangeLang, notifications, user, online = true }: TopbarRightProps) {
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
+export function TopbarRight({ currentLang, onChangeLang, user, online = true }: TopbarRightProps) {
   return (
     <div className="topbar-right">
       <LanguageSwitcher currentLang={currentLang} onChange={onChangeLang} />
-      <NotificationBell unreadCount={unreadCount} items={notifications} />
+      <NotificationBell />
       <GamificationBadge
         rating={user.rating}
         level={user.level}

@@ -50,8 +50,30 @@ INSTALLED_APPS = [
     'projects',
     'tasks',
     'employees',
-    'integrations',
+    'integrations.apps.IntegrationsConfig',
+    'events',
 ]
+
+# Celery Configuration
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+
+CELERY_BEAT_SCHEDULE = {
+    'generate-time-based-notifications-every-15-min': {
+        'task': 'events.tasks.generate_time_based_notifications',
+        'schedule': 900.0,  # 15 minutes
+    },
+}
+
+# MinIO Configuration
+MINIO_ENDPOINT = os.getenv('MINIO_ENDPOINT', 'localhost:9000')
+MINIO_ACCESS_KEY = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
+MINIO_SECRET_KEY = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
+MINIO_BUCKET_NAME = os.getenv('MINIO_BUCKET_NAME', 'vela-attachments')
+MINIO_USE_SSL = os.getenv('MINIO_USE_SSL', 'False').lower() in ('true', '1', 't')
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -69,6 +91,12 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
+]
+
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-employee-id",
 ]
 
 ROOT_URLCONF = 'config.urls'

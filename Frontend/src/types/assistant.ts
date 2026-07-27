@@ -30,6 +30,7 @@ export interface ChatMessage {
 }
 
 export interface UserProfile {
+  employeeId?: string;
   name: string;
   role: string;
   avatarUrl: string;
