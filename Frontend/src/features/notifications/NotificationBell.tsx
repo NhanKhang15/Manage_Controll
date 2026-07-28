@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getNotifications, markNotificationRead, markAllNotificationsRead, type NotificationItem } from "../../api/notifications";
-import { currentUser } from "../../mocks/user";
 
 const ICON_MAP: Record<string, string> = {
   calendar: "📅",
@@ -20,7 +19,7 @@ export function NotificationBell() {
 
   const fetchUnreadNotifications = async () => {
     try {
-      const data = await getNotifications(true, currentUser.employeeId);
+      const data = await getNotifications(true);
       setNotifications(data);
     } catch {
       // Fallback
@@ -66,7 +65,7 @@ export function NotificationBell() {
 
   const handleMarkAllRead = async () => {
     try {
-      await markAllNotificationsRead(currentUser.employeeId);
+      await markAllNotificationsRead();
       setNotifications([]);
     } catch {
       // ignore

@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import dj_database_url
 
 # Load environment variables from .env file
 load_dotenv()
@@ -30,7 +31,10 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-_hx_qy)u6nnz2b(vt^w*afou#4
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS mặc định '*' (dev). Khi deploy, set biến môi trường ALLOWED_HOSTS
+# (phân tách bằng dấu phẩy) để giới hạn đúng domain thật.
+_allowed_hosts_env = os.getenv('ALLOWED_HOSTS')
+ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()] if _allowed_hosts_env else ['*']
 
 
 # Application definition
@@ -78,6 +82,7 @@ MINIO_USE_SSL = os.getenv('MINIO_USE_SSL', 'False').lower() in ('true', '1', 't'
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -86,18 +91,41 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-]
+# CORS_ALLOWED_ORIGINS mặc định là các origin dev local. Khi deploy, set biến môi
+# trường CORS_ALLOWED_ORIGINS (phân tách bằng dấu phẩy) để trỏ đúng domain frontend thật.
+_cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS')
+CORS_ALLOWED_ORIGINS = (
+    [o.strip() for o in _cors_origins_env.split(',') if o.strip()]
+    if _cors_origins_env
+    else [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+)
 
 from corsheaders.defaults import default_headers
 
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    "x-employee-id",
-]
+# "authorization" đã nằm sẵn trong default_headers của corsheaders — không cần
+# thêm header tự chế nào nữa (X-Employee-Id đã bị xóa bỏ, thay bằng JWT Bearer).
+CORS_ALLOW_HEADERS = list(default_headers)
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'employees.authentication.TrackingJWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+}
 
 ROOT_URLCONF = 'config.urls'
 
@@ -122,17 +150,37 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('DB_NAME', 'project_management'),
-        'USER': os.getenv('DB_USER', 'root'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'your_password'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '3306'),
-        'OPTIONS': {'charset': 'utf8mb4'},
+_db_host = os.getenv('DB_HOST', 'localhost')
+_db_options = {'charset': 'utf8mb4'}
+
+# Chỉ bật SSL khi trỏ tới DB thật ở xa (Aiven...) — MySQL local (localhost/127.0.0.1)
+# thường không bật SSL nên ép ssl ở đây sẽ làm hỏng kết nối dev.
+if _db_host not in ('localhost', '127.0.0.1'):
+    _db_options['ssl'] = {'ca': str(BASE_DIR / 'config' / 'certs' / 'aiven-ca.pem')}
+
+if os.getenv('DATABASE_URL'):
+    # Render/Aiven đôi khi cấp sẵn 1 connection string dạng mysql://user:pass@host:port/db
+    DATABASES = {
+        'default': {
+            **dj_database_url.parse(os.getenv('DATABASE_URL')),
+            'OPTIONS': _db_options,
+            'CONN_MAX_AGE': 60,
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.getenv('DB_NAME', 'project_management'),
+            'USER': os.getenv('DB_USER', 'root'),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'your_password'),
+            'HOST': _db_host,
+            'PORT': os.getenv('DB_PORT', '3306'),
+            'OPTIONS': _db_options,
+            # Tái sử dụng connection — quan trọng vì Aiven free giới hạn số connection đồng thời.
+            'CONN_MAX_AGE': 60,
+        }
+    }
 
 
 # Password validation
@@ -170,6 +218,12 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 # Google Drive Integration Settings
 _creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")

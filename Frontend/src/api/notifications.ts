@@ -17,13 +17,9 @@ export interface NotificationItem {
   created_at: string;
 }
 
-export async function getNotifications(unreadOnly = false, employeeId?: string): Promise<NotificationItem[]> {
-  const headers: Record<string, string> = {};
-  if (employeeId) {
-    headers["X-Employee-Id"] = employeeId;
-  }
+export async function getNotifications(unreadOnly = false): Promise<NotificationItem[]> {
   const query = unreadOnly ? "?unread_only=true" : "";
-  return apiFetch<NotificationItem[]>(`/notifications/${query}`, { headers });
+  return apiFetch<NotificationItem[]>(`/notifications/${query}`);
 }
 
 export async function markNotificationRead(id: string): Promise<NotificationItem> {
@@ -32,13 +28,8 @@ export async function markNotificationRead(id: string): Promise<NotificationItem
   });
 }
 
-export async function markAllNotificationsRead(employeeId?: string): Promise<void> {
-  const headers: Record<string, string> = {};
-  if (employeeId) {
-    headers["X-Employee-Id"] = employeeId;
-  }
+export async function markAllNotificationsRead(): Promise<void> {
   return apiFetch<void>("/notifications/read-all/", {
     method: "PATCH",
-    headers,
   });
 }

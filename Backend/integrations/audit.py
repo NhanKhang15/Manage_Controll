@@ -1,5 +1,6 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
+from integrations.current_user import get_current_employee
 from integrations.models import AuditLog
 
 # Import models dynamically or when registered
@@ -19,6 +20,7 @@ def register_audit_signal(model_cls):
                 table_name=table_name,
                 record_id=record_id,
                 action=action,
+                changed_by=get_current_employee(),
             )
 
         @receiver(post_delete, sender=model_cls)
@@ -29,4 +31,5 @@ def register_audit_signal(model_cls):
                 table_name=table_name,
                 record_id=record_id,
                 action='delete',
+                changed_by=get_current_employee(),
             )

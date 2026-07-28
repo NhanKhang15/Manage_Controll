@@ -1,30 +1,27 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useImperativeHandle, useRef } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { type DateClickArg } from "@fullcalendar/interaction";
-import type { DatesSetArg, EventClickArg } from "@fullcalendar/core";
+import type { DatesSetArg, EventClickArg, MoreLinkArg } from "@fullcalendar/core";
 import viLocale from "@fullcalendar/core/locales/vi";
-import type { CalendarEventItem, CalendarViewMode } from "../../types/calendar";
-
-const VIEW_TO_FC: Record<CalendarViewMode, string> = {
-  month: "dayGridMonth",
-  week: "timeGridWeek",
-  day: "timeGridDay",
-};
+import { toDateKey } from "./dateUtils";
+import type { CalendarEventItem } from "../../types/calendar";
 
 /**
  * CalendarView
- * Bọc thư viện FullCalendar (thay cho lưới .cal-month/.cal-grid/.cal-cell viết
- * tay trong HTML gốc), style qua .vela-fc trong global.css.
+ * Bọc thư viện FullCalendar cho tab Tháng (dayGridMonth). Tab Tuần/Ngày dùng
+ * WeekView/DayView tự dựng (xem CalendarPage) thay vì timeGridWeek/timeGridDay.
  * Thẻ HTML gốc: <div class=cal-month> (nay do FullCalendar tự render)
  */
 export interface CalendarViewProps {
   events: CalendarEventItem[];
-  view: CalendarViewMode;
+  /** Tháng để mở khi FullCalendar được mount lại (giữ vị trí điều hướng trước đó). */
+  initialDate?: Date;
   onDateClick: (dateStr: string) => void;
   onEventClick: (eventId: string) => void;
   onDatesSet: (info: DatesSetArg) => void;
+  /** Bấm "+X more" khi 1 ngày có quá nhiều sự kiện → chuyển sang tab Ngày thay vì bung popover. */
+  onMoreClick: (dateStr: string) => void;
 }
 
 export interface CalendarViewHandle {
@@ -34,7 +31,7 @@ export interface CalendarViewHandle {
 }
 
 export const CalendarView = forwardRef<CalendarViewHandle, CalendarViewProps>(function CalendarView(
-  { events, view, onDateClick, onEventClick, onDatesSet },
+  { events, initialDate, onDateClick, onEventClick, onDatesSet, onMoreClick },
   ref
 ) {
   const fcRef = useRef<FullCalendar>(null);
@@ -45,16 +42,13 @@ export const CalendarView = forwardRef<CalendarViewHandle, CalendarViewProps>(fu
     today: () => fcRef.current?.getApi().today(),
   }));
 
-  useEffect(() => {
-    fcRef.current?.getApi().changeView(VIEW_TO_FC[view]);
-  }, [view]);
-
   return (
     <div className="vela-fc">
       <FullCalendar
         ref={fcRef}
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView={VIEW_TO_FC[view]}
+        plugins={[dayGridPlugin, interactionPlugin]}
+        initialView="dayGridMonth"
+        initialDate={initialDate}
         headerToolbar={false}
         height="auto"
         locale={viLocale}
@@ -71,6 +65,10 @@ export const CalendarView = forwardRef<CalendarViewHandle, CalendarViewProps>(fu
         dateClick={(info: DateClickArg) => onDateClick(info.dateStr)}
         eventClick={(info: EventClickArg) => onEventClick(info.event.id)}
         datesSet={onDatesSet}
+        moreLinkClick={(info: MoreLinkArg) => {
+          onMoreClick(toDateKey(info.date));
+          return "none";
+        }}
       />
     </div>
   );

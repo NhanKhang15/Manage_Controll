@@ -1,17 +1,15 @@
 import type { FormEvent } from "react";
 import { Button } from "../../components/ui/Button";
-import { departments } from "../../mocks/auth";
 
 /**
  * RegisterForm
- * Form đăng ký: Họ tên, Email công ty, Phòng ban, Mật khẩu.
+ * Form đăng ký: Họ tên, Email công ty, Mật khẩu.
  * Thẻ HTML gốc: <form method=post class=login-form>
  * CSS gốc tham chiếu: .login-form
  */
 export interface RegisterFormValues {
   name: string;
   email: string;
-  departmentId: number | "";
   password: string;
 }
 
@@ -51,22 +49,6 @@ export function RegisterForm({ values, onChange, onSubmit }: RegisterFormProps) 
           value={values.email}
           onChange={(e) => onChange({ ...values, email: e.target.value })}
         />
-      </label>
-      <label>
-        Phòng ban
-        <select
-          name="department_id"
-          required
-          value={values.departmentId}
-          onChange={(e) => onChange({ ...values, departmentId: Number(e.target.value) })}
-        >
-          <option value="">— Chọn phòng ban —</option>
-          {departments.map((dept) => (
-            <option key={dept.id} value={dept.id}>
-              {dept.label}
-            </option>
-          ))}
-        </select>
       </label>
       <label>
         Mật khẩu (≥ 6 ký tự)

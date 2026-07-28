@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
-import { createEvent, getDrivers, uploadFile } from "../../api/events";
+import { createEvent, updateEvent, getDrivers, uploadFile } from "../../api/events";
 import { apiFetch } from "../../api/client";
-import { currentUser } from "../../mocks/user";
+import type { CalendarEventItem } from "../../types/calendar";
 
 export interface EventFormModalProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ export interface EventFormModalProps {
   onSubmitSuccess?: () => void;
   defaultDate: string;
   selectedCompanyId?: string;
+  editingEvent?: CalendarEventItem | null;
 }
 
 export function EventFormModal({
@@ -19,7 +20,9 @@ export function EventFormModal({
   onSubmitSuccess,
   defaultDate,
   selectedCompanyId = "",
+  editingEvent = null,
 }: EventFormModalProps) {
+  const isEditing = !!editingEvent;
   const [tabType, setTabType] = useState<"meeting" | "personal">("meeting");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(defaultDate);
@@ -54,13 +57,25 @@ export function EventFormModal({
 
   useEffect(() => {
     if (isOpen) {
-      setTitle("");
-      setDate(defaultDate);
-      setStartTime("09:00");
-      setEndTime("10:00");
-      setLocation("");
-      setOnlineMeetingLink("");
-      setContent("");
+      if (editingEvent) {
+        setTabType(editingEvent.type === "personal" ? "personal" : "meeting");
+        setTitle(editingEvent.title);
+        setDate(editingEvent.eventDate);
+        setStartTime(editingEvent.startTime || "09:00");
+        setEndTime(editingEvent.endTime || "10:00");
+        setLocation(editingEvent.location || "");
+        setOnlineMeetingLink("");
+        setContent(editingEvent.content || "");
+      } else {
+        setTabType("meeting");
+        setTitle("");
+        setDate(defaultDate);
+        setStartTime("09:00");
+        setEndTime("10:00");
+        setLocation("");
+        setOnlineMeetingLink("");
+        setContent("");
+      }
       setNeedPickupCar(false);
       setDriverId("");
       setHasGift(false);
@@ -81,7 +96,7 @@ export function EventFormModal({
         apiFetch(`/employees/`).then(setEmployees).catch(() => {});
       }
     }
-  }, [isOpen, defaultDate, selectedCompanyId]);
+  }, [isOpen, defaultDate, selectedCompanyId, editingEvent]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -127,62 +142,79 @@ export function EventFormModal({
     setError(null);
 
     try {
-      await createEvent(
-        {
-          company_id: selectedCompanyId,
-          type: tabType,
-          title: title.trim(),
-          content: content.trim(),
-          event_date: date,
-          start_time: startTime,
-          end_time: endTime,
-          location: location.trim(),
-          online_meeting_link: onlineMeetingLink.trim(),
-          need_pickup_car: tabType === "meeting" && needPickupCar,
-          driver_id: tabType === "meeting" && needPickupCar ? driverId : undefined,
-          has_gift: tabType === "meeting" && hasGift,
-          gift_note: tabType === "meeting" && hasGift ? giftNote : undefined,
-          invite_all_company: tabType === "meeting" && inviteAllCompany,
-          invited_department_ids: tabType === "meeting" && !inviteAllCompany ? selectedDeptIds : [],
-          invited_employee_ids: tabType === "meeting" && !inviteAllCompany ? selectedEmpIds : [],
-          attachment_urls: attachments,
-        },
-        currentUser.employeeId
-      );
+      if (isEditing && editingEvent) {
+        await updateEvent(
+          editingEvent.id,
+          {
+            type: editingEvent.type === "personal" ? "personal" : "meeting",
+            title: title.trim(),
+            content: content.trim(),
+            event_date: date,
+            start_time: startTime,
+            end_time: endTime,
+            location: location.trim(),
+            online_meeting_link: onlineMeetingLink.trim(),
+          }
+        );
+      } else {
+        await createEvent(
+          {
+            company_id: selectedCompanyId,
+            type: tabType,
+            title: title.trim(),
+            content: content.trim(),
+            event_date: date,
+            start_time: startTime,
+            end_time: endTime,
+            location: location.trim(),
+            online_meeting_link: onlineMeetingLink.trim(),
+            need_pickup_car: tabType === "meeting" && needPickupCar,
+            driver_id: tabType === "meeting" && needPickupCar ? driverId : undefined,
+            has_gift: tabType === "meeting" && hasGift,
+            gift_note: tabType === "meeting" && hasGift ? giftNote : undefined,
+            invite_all_company: tabType === "meeting" && inviteAllCompany,
+            invited_department_ids: tabType === "meeting" && !inviteAllCompany ? selectedDeptIds : [],
+            invited_employee_ids: tabType === "meeting" && !inviteAllCompany ? selectedEmpIds : [],
+            attachment_urls: attachments,
+          }
+        );
+      }
 
       onSubmitSuccess?.();
       onClose();
     } catch (err: any) {
-      setError(err.message || "Không thể tạo lịch. Vui lòng kiểm tra lại.");
+      setError(err.message || "Không thể lưu lịch. Vui lòng kiểm tra lại.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Modal isOpen={isOpen} title="Thêm lịch" onClose={onClose}>
+    <Modal isOpen={isOpen} title={isEditing ? "Sửa lịch" : "Thêm lịch"} onClose={onClose}>
       <form className="login-form space-y-4" onSubmit={handleSubmit}>
-        {/* Tabs: Cuộc họp / Lịch cá nhân */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <label className="kind-opt" style={{ flex: 1, cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="tabType"
-              checked={tabType === "meeting"}
-              onChange={() => setTabType("meeting")}
-            />
-            <span style={{ fontWeight: 600 }}>🤝 Cuộc họp</span>
-          </label>
-          <label className="kind-opt" style={{ flex: 1, cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="tabType"
-              checked={tabType === "personal"}
-              onChange={() => setTabType("personal")}
-            />
-            <span style={{ fontWeight: 600 }}>🏠 Lịch cá nhân</span>
-          </label>
-        </div>
+        {/* Tabs: Cuộc họp / Lịch cá nhân (chỉ khi tạo mới; khi sửa giữ nguyên loại gốc) */}
+        {!isEditing && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <label className="kind-opt" style={{ flex: 1, cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="tabType"
+                checked={tabType === "meeting"}
+                onChange={() => setTabType("meeting")}
+              />
+              <span style={{ fontWeight: 600 }}>🤝 Cuộc họp</span>
+            </label>
+            <label className="kind-opt" style={{ flex: 1, cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="tabType"
+                checked={tabType === "personal"}
+                onChange={() => setTabType("personal")}
+              />
+              <span style={{ fontWeight: 600 }}>🏠 Lịch cá nhân</span>
+            </label>
+          </div>
+        )}
 
         <label>
           Tiêu đề <span className="text-red-500">*</span>
@@ -223,7 +255,7 @@ export function EventFormModal({
           />
         </label>
 
-        {tabType === "meeting" && (
+        {(isEditing ? editingEvent?.type === "meeting" : tabType === "meeting") && (
           <label>
             Link họp trực tuyến
             <input
@@ -248,8 +280,8 @@ export function EventFormModal({
           />
         </label>
 
-        {/* Conditional fields for Meeting tab */}
-        {tabType === "meeting" && (
+        {/* Conditional fields for Meeting tab (chỉ khi tạo mới) */}
+        {!isEditing && tabType === "meeting" && (
           <>
             <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 600 }}>
@@ -348,23 +380,25 @@ export function EventFormModal({
           </>
         )}
 
-        {/* File Attachments */}
-        <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>📎 File đính kèm</div>
-          <input type="file" multiple onChange={handleFileUpload} disabled={uploadingFile || loading} style={{ fontSize: 13 }} />
-          {uploadingFile && <span style={{ fontSize: 12, color: "var(--muted)" }}> Đang tải file lên...</span>}
-          {attachments.length > 0 && (
-            <ul style={{ marginTop: 6, fontSize: 12, paddingLeft: 16 }}>
-              {attachments.map((att, idx) => (
-                <li key={idx}>
-                  <a href={att.url} target="_blank" rel="noreferrer" style={{ color: "var(--brand)" }}>
-                    {att.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {/* File Attachments (chỉ khi tạo mới) */}
+        {!isEditing && (
+          <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>📎 File đính kèm</div>
+            <input type="file" multiple onChange={handleFileUpload} disabled={uploadingFile || loading} style={{ fontSize: 13 }} />
+            {uploadingFile && <span style={{ fontSize: 12, color: "var(--muted)" }}> Đang tải file lên...</span>}
+            {attachments.length > 0 && (
+              <ul style={{ marginTop: 6, fontSize: 12, paddingLeft: 16 }}>
+                {attachments.map((att, idx) => (
+                  <li key={idx}>
+                    <a href={att.url} target="_blank" rel="noreferrer" style={{ color: "var(--brand)" }}>
+                      {att.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {error && <div className="text-sm text-red-600 font-medium">{error}</div>}
 

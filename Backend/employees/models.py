@@ -1,11 +1,19 @@
 import uuid
 from datetime import date
+from django.conf import settings
 from django.db import models
 from companies.models import Company, Department
 
 
 class Employee(models.Model):
     id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='employee',
+    )
     full_name = models.CharField(max_length=255)
     email = models.EmailField(max_length=255, unique=True)
     phone = models.CharField(max_length=50, null=True, blank=True)

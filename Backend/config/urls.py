@@ -1,13 +1,22 @@
 from django.contrib import admin
 from django.urls import path
+from rest_framework_simplejwt.views import TokenRefreshView
 from companies import views as company_views
 from projects import views as project_views
 from tasks import views as task_views
 from employees import views as employee_views
+from employees import auth_views as employee_auth_views
 from events import views as event_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    # Auth
+    path('api/auth/login/', employee_auth_views.login_view, name='auth_login'),
+    path('api/auth/register/', employee_auth_views.register_view, name='auth_register'),
+    path('api/auth/refresh/', TokenRefreshView.as_view(), name='auth_refresh'),
+    path('api/auth/me/', employee_auth_views.me_view, name='auth_me'),
+
     path('api/companies/', company_views.company_tree, name='company_tree'),
     path('api/companies/create-with-folder/', company_views.create_company_with_folder, name='create_company_with_folder'),
     path('api/companies/<str:pk>/', company_views.delete_company, name='delete_company'),
@@ -23,6 +32,7 @@ urlpatterns = [
     # Events & Drivers
     path('api/events/', event_views.get_events, name='get_events'),
     path('api/events/create/', event_views.create_event_view, name='create_event'),
+    path('api/events/<str:pk>/', event_views.event_detail_view, name='event_detail'),
     path('api/drivers/', event_views.get_drivers, name='get_drivers'),
 
     # Notifications

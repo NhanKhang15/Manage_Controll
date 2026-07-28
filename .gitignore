@@ -12,6 +12,10 @@ skills-lock.json
 # ==========================================
 node_modules/
 **/node_modules/
+venv/
+**/venv/
+.venv/
+**/.venv/
 .npm/
 .pnpm-store/
 .yarn/
@@ -30,6 +34,7 @@ out/
 target/
 bin/
 obj/
+Backend/staticfiles/
 
 # Compiled Java / C / C++ / Python classes & binaries
 *.class
@@ -54,6 +59,7 @@ logs/
 .env.test.local
 .env.production.local
 *.pem
+!Backend/config/certs/aiven-ca.pem
 *.key
 recovery-codes.txt
 

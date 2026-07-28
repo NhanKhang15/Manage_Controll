@@ -1916,6 +1916,216 @@ code {
   }
 }
 
+.cal-ev.ev-reminder {
+  background: #FFEDD5;
+  color: #C2410C
+}
+
+.cal-ev.ev-reminder:hover {
+  background: #F97316;
+  color: #fff
+}
+
+/* ===== Tab Tuần (WeekView): danh sách sự kiện theo cột ngày, không giới
+   hạn số lượng — thay cho lưới giờ timeGridWeek của FullCalendar. ===== */
+.cal-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  align-items: stretch
+}
+
+.cal-week-col {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-height: 220px;
+  overflow: hidden
+}
+
+.cal-week-col-head {
+  padding: 10px 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg)
+}
+
+.cal-week-col-head.is-today {
+  background: var(--brand-soft)
+}
+
+.cal-week-day {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted)
+}
+
+.cal-week-date {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text)
+}
+
+.cal-week-col-head.is-today .cal-week-date {
+  color: var(--brand)
+}
+
+.cal-week-col-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  overflow-y: auto
+}
+
+.cal-week-col-body .cal-ev {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+
+.cal-week-add {
+  border: none;
+  border-top: 1px dashed var(--line);
+  background: transparent;
+  color: var(--muted-2);
+  padding: 6px;
+  cursor: pointer;
+  display: grid;
+  place-items: center
+}
+
+.cal-week-add:hover {
+  background: var(--line-2);
+  color: var(--text)
+}
+
+@media (max-width:900px) {
+  .cal-week-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Tab Ngày (DayView): danh sách dọc thẻ sự kiện — thay cho lưới giờ
+   timeGridDay của FullCalendar. ===== */
+.cal-day-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--muted-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius)
+}
+
+.cal-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px
+}
+
+.cal-day-card {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-left: 4px solid var(--brand);
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  cursor: pointer
+}
+
+.cal-day-card:hover {
+  background: var(--bg)
+}
+
+.cal-day-card.ev-bar-personal {
+  border-left-color: #F59E0B
+}
+
+.cal-day-card-time {
+  display: flex;
+  flex-direction: column;
+  min-width: 44px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text)
+}
+
+.cal-day-card-time-end {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-2)
+}
+
+.cal-day-card-body {
+  flex: 1;
+  min-width: 0
+}
+
+.cal-day-card-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+
+.cal-day-card-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted)
+}
+
+/* ===== Widget tóm tắt sự kiện (EventDetailModal). ===== */
+.ev-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--text);
+  margin-bottom: 8px
+}
+
+.ev-detail-row svg {
+  color: var(--muted);
+  flex-shrink: 0
+}
+
+.ev-detail-content {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--text);
+  white-space: pre-wrap
+}
+
+.ev-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px
+}
+
+.ev-detail-actions .btn-reject {
+  border-color: #FECACA;
+  color: #DC2626
+}
+
 /* ===== Trang Bảng điều hành (.panel, .kpi-grid, .dash-grid...) — lấy
    nguyên bản từ CSS thật của trang Bảng điều hành. ===== */
 .muted {

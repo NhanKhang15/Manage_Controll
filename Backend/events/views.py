@@ -4,9 +4,10 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from employees.services import get_employee_from_request
 from events.models import Event, Driver, Notification
 from events.serializers import EventSerializer, DriverSerializer, NotificationSerializer
-from events.services import get_employee_from_request, create_event
+from events.services import create_event, update_event
 from integrations.minio_storage import upload_file_to_minio
 
 
@@ -60,6 +61,28 @@ def create_event_view(request):
         )
         serializer = EventSerializer(event)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    except ValueError as e:
+        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PATCH', 'DELETE'])
+def event_detail_view(request, pk):
+    try:
+        event = Event.objects.get(id=pk)
+    except Event.DoesNotExist:
+        return Response({'detail': 'Sự kiện không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'DELETE':
+        event.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    data = request.data.copy()
+    try:
+        event = update_event(event, data)
+        serializer = EventSerializer(event)
+        return Response(serializer.data)
     except ValueError as e:
         return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:

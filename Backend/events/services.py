@@ -1,17 +1,6 @@
 from django.db import transaction
-from employees.models import Employee, EmployeeCompany, EmployeeDepartment
+from employees.models import EmployeeCompany, EmployeeDepartment
 from events.models import Event, Driver, EventDepartmentInvite, EventEmployeeInvite, EventAttachment, Notification
-
-
-def get_employee_from_request(request):
-    # TODO: Thay thế bằng auth thật (request.user.employee) khi hệ thống tích hợp auth
-    emp_id = request.headers.get('X-Employee-Id') or request.META.get('HTTP_X_EMPLOYEE_ID')
-    if emp_id:
-        try:
-            return Employee.objects.get(id=emp_id, is_active=True)
-        except Employee.DoesNotExist:
-            pass
-    return Employee.objects.filter(is_active=True).first()
 
 
 def create_event(data, creator, invited_department_ids=None, invited_employee_ids=None, attachment_urls=None):
@@ -80,6 +69,44 @@ def create_event(data, creator, invited_department_ids=None, invited_employee_id
         create_notifications_for_event(event)
 
         return event
+
+
+def update_event(event, data):
+    event_type = data.get('type', event.type)
+    need_pickup_car = data.get('need_pickup_car', event.need_pickup_car)
+    has_gift = data.get('has_gift', event.has_gift)
+    driver_id = data.get('driver_id', event.driver_id)
+
+    if event_type == 'personal':
+        need_pickup_car = False
+        has_gift = False
+        driver_id = None
+
+    if event_type == 'meeting' and need_pickup_car:
+        if not driver_id:
+            raise ValueError("Cuộc họp cần xe đưa đón bắt buộc phải chọn tài xế")
+        try:
+            driver = Driver.objects.get(id=driver_id, is_active=True)
+        except Driver.DoesNotExist:
+            raise ValueError("Tài xế được chọn không tồn tại hoặc đã ngưng hoạt động")
+    else:
+        driver = None
+
+    event.type = event_type
+    event.title = data.get('title', event.title)
+    event.content = data.get('content', event.content)
+    event.event_date = data.get('event_date', event.event_date)
+    event.start_time = data.get('start_time', event.start_time)
+    event.end_time = data.get('end_time', event.end_time)
+    event.location = data.get('location', event.location)
+    event.online_meeting_link = data.get('online_meeting_link', event.online_meeting_link)
+    event.need_pickup_car = need_pickup_car
+    event.driver = driver
+    event.has_gift = has_gift
+    event.gift_note = data.get('gift_note') if has_gift else None
+    event.save()
+
+    return event
 
 
 def create_notifications_for_event(event):

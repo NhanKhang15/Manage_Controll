@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import { getAccessToken } from "../auth/tokenStorage";
 
 export interface EventCreateData {
   company_id: string;
@@ -29,15 +30,23 @@ export async function getEvents(year: number, month: number, companyId?: string)
   return apiFetch<any[]>(`/events/?${query.toString()}`);
 }
 
-export async function createEvent(data: EventCreateData, employeeId?: string): Promise<any> {
-  const headers: Record<string, string> = {};
-  if (employeeId) {
-    headers["X-Employee-Id"] = employeeId;
-  }
+export async function createEvent(data: EventCreateData): Promise<any> {
   return apiFetch<any>("/events/create/", {
     method: "POST",
-    headers,
     body: JSON.stringify(data),
+  });
+}
+
+export async function updateEvent(id: string, data: Partial<EventCreateData>): Promise<any> {
+  return apiFetch<any>(`/events/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteEvent(id: string): Promise<void> {
+  await apiFetch<void>(`/events/${id}/`, {
+    method: "DELETE",
   });
 }
 
@@ -53,8 +62,12 @@ export async function uploadFile(file: File): Promise<{ url: string; name: strin
   const BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
   const url = `${BASE_URL}/upload/`;
 
+  // Không đi qua apiFetch (Content-Type phải để browser tự set boundary cho
+  // multipart/form-data) nên phải tự đính kèm Bearer token ở đây.
+  const accessToken = getAccessToken();
   const res = await fetch(url, {
     method: "POST",
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
     body: formData,
   });
 
