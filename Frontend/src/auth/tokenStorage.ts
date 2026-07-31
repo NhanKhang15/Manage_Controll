@@ -8,6 +8,7 @@
 
 const ACCESS_KEY = "vela_access_token";
 const REFRESH_KEY = "vela_refresh_token";
+const USER_ID_KEY = "vela_user_id";
 
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_KEY);
@@ -26,7 +27,16 @@ export function setAccessToken(access: string): void {
   localStorage.setItem(ACCESS_KEY, access);
 }
 
+export function getUserId(): string | null {
+  return localStorage.getItem(USER_ID_KEY);
+}
+
+export function setUserId(id: string): void {
+  localStorage.setItem(USER_ID_KEY, id);
+}
+
 export function clearTokens(): void {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(USER_ID_KEY);
 }

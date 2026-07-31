@@ -7,7 +7,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from employees.models import Employee
+from employees.models import Employee, EmployeeCompany
 from employees.serializers import EmployeeSerializer
 
 
@@ -37,6 +37,7 @@ def register_view(request):
     full_name = (request.data.get('full_name') or '').strip()
     email = (request.data.get('email') or '').strip().lower()
     password = request.data.get('password') or ''
+    company_id = request.data.get('company_id', '').strip() if request.data.get('company_id') else ''
 
     if not full_name or not email or not password:
         return Response({'detail': 'Vui lòng nhập đầy đủ họ tên, email và mật khẩu'}, status=status.HTTP_400_BAD_REQUEST)
@@ -63,6 +64,16 @@ def register_view(request):
     # Không có bước chờ quản lý duyệt: tài khoản tạo xong dùng được ngay
     # (is_active mặc định True ở cả User lẫn Employee).
     employee = Employee.objects.create(user=user, full_name=full_name, email=email)
+
+    # Tự động gắn nhân viên vào công ty (nếu có company_id hoặc fallback công ty đầu tiên)
+    from companies.models import Company
+    target_company = None
+    if company_id:
+        target_company = Company.objects.filter(id=company_id).first()
+    if not target_company:
+        target_company = Company.objects.first()
+    if target_company:
+        EmployeeCompany.objects.get_or_create(employee=employee, company=target_company)
 
     refresh = RefreshToken.for_user(user)
     return Response(

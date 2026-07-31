@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'employees',
     'integrations.apps.IntegrationsConfig',
     'events',
+    'meetings',
 ]
 
 # Celery Configuration

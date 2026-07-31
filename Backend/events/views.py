@@ -31,12 +31,18 @@ def get_events(request):
 
     if current_emp:
         emp_dept_ids = current_emp.employee_departments.values_list('department_id', flat=True)
-        queryset = queryset.filter(
+        emp_company_ids = current_emp.employee_companies.values_list('company_id', flat=True)
+
+        meeting_visible = Q(type='meeting') & (
             Q(created_by=current_emp) |
-            Q(invite_all_company=True) |
+            Q(invite_all_company=True, company_id__in=emp_company_ids) |
             Q(employee_invites__employee=current_emp) |
             Q(department_invites__department_id__in=emp_dept_ids)
-        ).distinct()
+        )
+        personal_visible = Q(type='personal', created_by=current_emp)
+        reminder_visible = Q(type='reminder', created_by=current_emp)
+
+        queryset = queryset.filter(meeting_visible | personal_visible | reminder_visible).distinct()
 
     serializer = EventSerializer(queryset, many=True)
     return Response(serializer.data)

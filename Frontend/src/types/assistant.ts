@@ -34,6 +34,7 @@ export interface UserProfile {
   name: string;
   role: string;
   avatarUrl: string;
+  email?: string;
   rating: number;
   level: number;
   managedStaff: number;

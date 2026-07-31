@@ -10,6 +10,7 @@ import { useToast } from "../components/ui/Toast";
 import { currentUser } from "../mocks/user";
 import { mainKpis, businessKpis, approvals, projectProgress, recentActivity } from "../mocks/dashboard";
 import { formatVietnameseDate, getGreeting } from "../utils/date";
+import { useAuth } from "../auth/AuthContext";
 
 /**
  * DashboardPage
@@ -18,16 +19,20 @@ import { formatVietnameseDate, getGreeting } from "../utils/date";
  */
 export function DashboardPage() {
   const { showToast } = useToast();
+  const { employee } = useAuth();
   const now = new Date();
+
+  const name = employee?.full_name || currentUser.name;
+  const role = employee?.position_title || currentUser.role;
 
   return (
     <AppShellPage initialNavId="dashboard">
       <div className="page-head">
         <h1>
-          {getGreeting(now)}, {currentUser.name} 👋
+          {getGreeting(now)}, {name} 👋
         </h1>
         <p className="page-sub">
-          {formatVietnameseDate(now)} · {currentUser.role}
+          {formatVietnameseDate(now)} · {role}
         </p>
       </div>
 

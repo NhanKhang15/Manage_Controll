@@ -18,7 +18,10 @@ def get_employees(request):
             'id': str(e.id),
             'full_name': e.full_name,
             'email': e.email,
-            'position_title': e.position_title
+            'position_title': e.position_title,
+            'has_account': e.user_id is not None,
+            'avatar_url': e.avatar_url,
+            'phone': e.phone,
         }
         for e in employees
     ]

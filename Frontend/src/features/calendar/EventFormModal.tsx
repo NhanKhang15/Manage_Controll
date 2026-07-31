@@ -91,9 +91,25 @@ export function EventFormModal({
       // Fetch drivers & employees
       if (selectedCompanyId) {
         getDrivers(selectedCompanyId).then(setDrivers).catch(() => {});
-        apiFetch(`/employees/?company_id=${selectedCompanyId}`).then(setEmployees).catch(() => {});
+        apiFetch(`/employees/?company_id=${selectedCompanyId}`)
+          .then((data) => {
+            console.log('[EventForm] Loaded employees for company:', data?.length);
+            setEmployees(Array.isArray(data) ? data : []);
+          })
+          .catch((err) => {
+            console.error('[EventForm] Failed to load employees:', err);
+            setEmployees([]);
+          });
       } else {
-        apiFetch(`/employees/`).then(setEmployees).catch(() => {});
+        apiFetch(`/employees/`)
+          .then((data) => {
+            console.log('[EventForm] Loaded all employees:', data?.length);
+            setEmployees(Array.isArray(data) ? data : []);
+          })
+          .catch((err) => {
+            console.error('[EventForm] Failed to load employees:', err);
+            setEmployees([]);
+          });
       }
     }
   }, [isOpen, defaultDate, selectedCompanyId, editingEvent]);
@@ -217,7 +233,7 @@ export function EventFormModal({
         )}
 
         <label>
-          Tiêu đề <span className="text-red-500">*</span>
+          Tiêu đề
           <input
             ref={titleInputRef}
             type="text"
@@ -231,7 +247,7 @@ export function EventFormModal({
 
         <div style={{ display: "flex", gap: 8 }}>
           <label style={{ flex: 1 }}>
-            Ngày <span className="text-red-500">*</span>
+            Ngày 
             <input type="date" required disabled={loading} value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
           <label style={{ flex: 1 }}>
@@ -339,7 +355,22 @@ export function EventFormModal({
             </div>
 
             <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>👥 Mời tham gia</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ fontWeight: 700 }}>👥 Mời tham gia</div>
+                {selectedEmpIds.length > 0 && !inviteAllCompany && (
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    background: "var(--brand)",
+                    color: "#fff",
+                    borderRadius: 20,
+                    padding: "2px 10px",
+                    letterSpacing: 0.3,
+                  }}>
+                    Đã chọn {selectedEmpIds.length}
+                  </span>
+                )}
+              </div>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 8 }}>
                 <input
                   type="checkbox"
@@ -351,28 +382,118 @@ export function EventFormModal({
 
               {!inviteAllCompany && (
                 <div style={{ paddingLeft: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Nhân viên:</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>Nhân viên ({employees.length}):</div>
+                    {(() => {
+                      const selectableIds = filteredEmployees.filter((e) => e.has_account !== false).map((e) => e.id);
+                      const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedEmpIds.includes(id));
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (allSelected) {
+                              setSelectedEmpIds(selectedEmpIds.filter((id) => !selectableIds.includes(id)));
+                            } else {
+                              const merged = new Set([...selectedEmpIds, ...selectableIds]);
+                              setSelectedEmpIds(Array.from(merged));
+                            }
+                          }}
+                          style={{
+                            border: "none",
+                            background: "none",
+                            color: "var(--brand)",
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            padding: "2px 4px",
+                          }}
+                        >
+                          {allSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                        </button>
+                      );
+                    })()}
+                  </div>
                   <input
                     type="text"
-                    placeholder="Tìm tên nhân viên..."
+                    placeholder="🔍 Tìm tên nhân viên..."
                     value={empQuery}
                     onChange={(e) => setEmpQuery(e.target.value)}
                     style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 13, marginBottom: 6 }}
                   />
-                  <div style={{ maxHeight: 120, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4, paddingRight: 4 }}>
-                    {filteredEmployees.map((emp) => (
-                      <label key={emp.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, cursor: "pointer" }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedEmpIds.includes(emp.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedEmpIds([...selectedEmpIds, emp.id]);
-                            else setSelectedEmpIds(selectedEmpIds.filter((id) => id !== emp.id));
+                  {employees.length === 0 && (
+                    <div style={{ padding: "8px 0", fontSize: 12.5, color: "var(--muted)", textAlign: "center" }}>
+                      ⚠️ Không tìm thấy nhân viên nào. Hãy kiểm tra công ty đã chọn.
+                    </div>
+                  )}
+                  <div style={{ maxHeight: 160, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2, paddingRight: 4 }}>
+                    {filteredEmployees.map((emp) => {
+                      const hasAccount = emp.has_account !== false;
+                      const initials = emp.full_name
+                        ? emp.full_name.split(" ").map((w: string) => w[0]).slice(-2).join("").toUpperCase()
+                        : "?";
+                      return (
+                        <label
+                          key={emp.id}
+                          title={!hasAccount ? "Nhân viên chưa có tài khoản đăng nhập — không thể mời" : emp.email}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 12.5,
+                            cursor: !hasAccount ? "not-allowed" : "pointer",
+                            opacity: !hasAccount ? 0.45 : 1,
+                            padding: "4px 6px",
+                            borderRadius: 8,
+                            background: selectedEmpIds.includes(emp.id) ? "var(--brand-soft, rgba(99,102,241,0.08))" : "transparent",
+                            transition: "background 0.15s",
                           }}
-                        />
-                        <span>{emp.full_name} ({emp.position_title || emp.email})</span>
-                      </label>
-                    ))}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={!hasAccount}
+                            checked={selectedEmpIds.includes(emp.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedEmpIds([...selectedEmpIds, emp.id]);
+                              else setSelectedEmpIds(selectedEmpIds.filter((id) => id !== emp.id));
+                            }}
+                            style={{ accentColor: "var(--brand)" }}
+                          />
+                          {/* Avatar initials */}
+                          <span style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: "50%",
+                            background: hasAccount ? "var(--brand)" : "var(--muted)",
+                            color: "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}>{initials}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {emp.full_name}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {emp.position_title || emp.email}
+                            </div>
+                          </div>
+                          {!hasAccount && (
+                            <span style={{
+                              fontSize: 10,
+                              background: "var(--line)",
+                              color: "var(--muted)",
+                              borderRadius: 6,
+                              padding: "1px 6px",
+                              whiteSpace: "nowrap",
+                              flexShrink: 0,
+                            }}>Chưa có TK</span>
+                          )}
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               )}

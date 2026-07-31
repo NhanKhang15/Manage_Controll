@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import type { DatesSetArg } from "@fullcalendar/core";
 import { AppShellPage } from "../layout/AppShellPage";
 import { CalendarToolbar } from "../features/calendar/CalendarToolbar";
@@ -50,6 +51,7 @@ export function CalendarPage() {
 
   const calendarRef = useRef<CalendarViewHandle>(null);
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   // Load company tree
   useEffect(() => {
@@ -195,7 +197,7 @@ export function CalendarPage() {
           else setCurrentDate(new Date());
         }}
         onAddEvent={() => openCreateModal(toDateKey(view === "month" ? new Date() : currentDate))}
-        onRecordMeeting={() => showToast("Tính năng ghi âm họp đang được phát triển", "default")}
+        onRecordMeeting={() => navigate(`/meetings/recorder${selectedCompanyId ? `?company_id=${selectedCompanyId}` : ""}`)}
       />
 
       {view === "month" && (

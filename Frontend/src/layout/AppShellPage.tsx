@@ -5,6 +5,8 @@ import { Overlay } from "../components/ui/Overlay";
 import { mainNavItems, moreNavItems } from "../mocks/navigation";
 import { currentUser } from "../mocks/user";
 import { notifications } from "../mocks/notifications";
+import { useAuth } from "../auth/AuthContext";
+import type { UserProfile } from "../types/assistant";
 
 /**
  * AppShellPage
@@ -22,9 +24,24 @@ export interface AppShellPageProps {
 export function AppShellPage({ initialNavId, children }: AppShellPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { employee } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [lang, setLang] = useState("VI");
+
+  const user: UserProfile = employee
+    ? {
+        employeeId: employee.id,
+        name: employee.full_name,
+        role: employee.position_title || "Nhân viên",
+        avatarUrl: employee.avatar_url || "/avatar-placeholder.svg",
+        email: employee.email,
+        rating: 4.6,
+        level: 1,
+        managedStaff: 4,
+        achievementPoints: 309,
+      }
+    : currentUser;
 
   // Xác định nav đang active dựa trên URL thật
   const activeNavId = location.pathname.replace("/", "") || initialNavId;
@@ -40,7 +57,7 @@ export function AppShellPage({ initialNavId, children }: AppShellPageProps) {
         sidebar={{
           collapsed,
           onToggleCollapse: () => setCollapsed((v) => !v),
-          user: currentUser,
+          user,
           navItems: mainNavItems,
           moreNavItems,
           activeNavId,
@@ -53,7 +70,7 @@ export function AppShellPage({ initialNavId, children }: AppShellPageProps) {
             currentLang: lang,
             onChangeLang: setLang,
             notifications,
-            user: currentUser,
+            user,
           },
           mobileNavItems: mainNavItems,
           activeNavId,
@@ -65,3 +82,4 @@ export function AppShellPage({ initialNavId, children }: AppShellPageProps) {
     </>
   );
 }
+

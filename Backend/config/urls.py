@@ -7,6 +7,8 @@ from tasks import views as task_views
 from employees import views as employee_views
 from employees import auth_views as employee_auth_views
 from events import views as event_views
+from meetings import views as meeting_views
+from integrations import views as integrations_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -42,4 +44,12 @@ urlpatterns = [
 
     # Upload
     path('api/upload/', event_views.upload_file_view, name='upload_file'),
+
+    # Meeting transcripts (Ghi âm & Tóm tắt cuộc họp)
+    path('api/meeting-transcripts/', meeting_views.meeting_transcripts_view, name='meeting_transcripts'),
+    path('api/meeting-transcripts/<str:pk>/', meeting_views.meeting_transcript_delete_view, name='meeting_transcript_delete'),
+    path('api/meeting-transcripts/<str:pk>/summarize/', meeting_views.meeting_transcript_summarize_view, name='meeting_transcript_summarize'),
+
+    # AI settings (module AI dùng chung)
+    path('api/settings/ai/', integrations_views.ai_settings_view, name='ai_settings'),
 ]
