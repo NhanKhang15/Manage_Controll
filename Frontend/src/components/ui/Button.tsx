@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 /**
  * Button
@@ -13,6 +13,7 @@ export interface ButtonProps {
   disabled?: boolean;
   children: ReactNode;
   onClick?: () => void;
+  style?: CSSProperties;
 }
 
 const VARIANT_CLASS: Record<NonNullable<ButtonProps["variant"]>, string> = {
@@ -31,6 +32,7 @@ export function Button({
   disabled = false,
   children,
   onClick,
+  style,
 }: ButtonProps) {
   const className = [
     "btn",
@@ -42,7 +44,7 @@ export function Button({
     .join(" ");
 
   return (
-    <button type={type} className={className} onClick={onClick} disabled={disabled}>
+    <button type={type} className={className} onClick={onClick} disabled={disabled} style={style}>
       {children}
     </button>
   );

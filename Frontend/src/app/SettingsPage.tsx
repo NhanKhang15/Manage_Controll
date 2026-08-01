@@ -4,10 +4,16 @@ import { Panel } from "../components/ui/Panel";
 import { Button } from "../components/ui/Button";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../auth/AuthContext";
+import { clearTokens } from "../auth/tokenStorage";
 
 export function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { employee } = useAuth();
   const { showToast } = useToast();
+
+  function handleLogout() {
+    clearTokens();
+    window.location.href = "/login";
+  }
 
   const [birthday, setBirthday] = useState("1993-05-30");
   const [companyName, setCompanyName] = useState("CÔNG TY CỔ PHẦN TECH");
@@ -49,15 +55,15 @@ export function SettingsPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
             <span className="muted">Họ tên</span>
-            <b>{user?.name || "Lê Xuân Huy"}</b>
+            <b>{employee?.full_name || "Lê Xuân Huy"}</b>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
             <span className="muted">Email</span>
-            <b>{user?.email || "huy@tng.vn"}</b>
+            <b>{employee?.email || "huy@tng.vn"}</b>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
             <span className="muted">Vai trò</span>
-            <b>{user?.role || "Ban lãnh đạo · Giám đốc"}</b>
+            <b>{employee?.position_title || "Ban lãnh đạo · Giám đốc"}</b>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
             <span className="muted">Phòng ban</span>
@@ -80,7 +86,7 @@ export function SettingsPage() {
         </form>
 
         <div style={{ marginTop: 16 }}>
-          <Button variant="ghost" size="sm" onClick={logout}>
+          <Button variant="ghost" size="sm" onClick={handleLogout}>
             Đăng xuất
           </Button>
         </div>
