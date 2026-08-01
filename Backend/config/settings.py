@@ -72,12 +72,18 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-# MinIO Configuration
+# MinIO / S3-compatible storage configuration (MinIO tự host, Cloudflare R2, AWS S3, ...)
 MINIO_ENDPOINT = os.getenv('MINIO_ENDPOINT', 'localhost:9000')
 MINIO_ACCESS_KEY = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
 MINIO_SECRET_KEY = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
 MINIO_BUCKET_NAME = os.getenv('MINIO_BUCKET_NAME', 'vela-attachments')
 MINIO_USE_SSL = os.getenv('MINIO_USE_SSL', 'False').lower() in ('true', '1', 't')
+# Region ký request S3. R2 bắt buộc phải là 'auto'; MinIO tự host/AWS S3 để trống.
+MINIO_REGION = os.getenv('MINIO_REGION') or None
+# URL public để trả về cho client (r2.dev subdomain hoặc custom domain).
+# Khác với MinIO tự host, R2 KHÔNG chèn tên bucket vào path public — khi set biến
+# này thì URL sẽ là "{MINIO_PUBLIC_URL_BASE}/{object_name}" (không có bucket_name).
+MINIO_PUBLIC_URL_BASE = os.getenv('MINIO_PUBLIC_URL_BASE') or None
 
 
 MIDDLEWARE = [

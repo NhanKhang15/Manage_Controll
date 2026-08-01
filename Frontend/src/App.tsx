@@ -14,6 +14,25 @@ import { MeetingRecorderPage } from "./features/meetings/MeetingRecorderPage";
 import { WikiPage } from "./app/WikiPage";
 import { OkrPage } from "./app/OkrPage";
 import { TimeTrackingPage } from "./app/TimeTrackingPage";
+import { TemplatesPage } from "./app/TemplatesPage";
+import { LeaderboardPage } from "./app/LeaderboardPage";
+import { HonorPage } from "./app/HonorPage";
+import { PayrollPage } from "./app/PayrollPage";
+import { PerformancePage } from "./app/PerformancePage";
+import { RecruitmentPage } from "./app/RecruitmentPage";
+import { ConnectionsPage } from "./app/ConnectionsPage";
+import { SettingsPage } from "./app/SettingsPage";
+import { LeavePage } from "./app/LeavePage";
+import { OffboardingPage } from "./app/OffboardingPage";
+import { ProfilePage } from "./app/ProfilePage";
+import { DocumentsPage } from "./app/DocumentsPage";
+import { AiFinancePage } from "./app/AiFinancePage";
+import { LevelsPage } from "./app/LevelsPage";
+import { ProposalsPage } from "./app/ProposalsPage";
+import { StatisticsPage } from "./app/StatisticsPage";
+import { ReportsPage } from "./app/ReportsPage";
+import { AutomationsPage } from "./app/AutomationsPage";
+import { TimeAttendancePage } from "./app/TimeAttendancePage";
 import { GenericPage } from "./app/GenericPage";
 
 import { ClientsPage } from "./app/ClientsPage";
@@ -40,6 +59,25 @@ function App() {
             <Route path="/time" element={<TimeTrackingPage />} />
             <Route path="/clients" element={<ClientsPage />} />
             <Route path="/people" element={<PeoplePage />} />
+            <Route path="/templates" element={<TemplatesPage />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/honor" element={<HonorPage />} />
+            <Route path="/payroll" element={<PayrollPage />} />
+            <Route path="/performance" element={<PerformancePage />} />
+            <Route path="/recruitment" element={<RecruitmentPage />} />
+            <Route path="/connections" element={<ConnectionsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/leave" element={<LeavePage />} />
+            <Route path="/offboarding" element={<OffboardingPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/documents" element={<DocumentsPage />} />
+            <Route path="/ai-finance" element={<AiFinancePage />} />
+            <Route path="/levels" element={<LevelsPage />} />
+            <Route path="/proposals" element={<ProposalsPage />} />
+            <Route path="/statistics" element={<StatisticsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/automations" element={<AutomationsPage />} />
+            <Route path="/time-attendance" element={<TimeAttendancePage />} />
             <Route path="/:pageId" element={<GenericPage />} />
           </Route>
 

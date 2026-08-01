@@ -30,4 +30,16 @@ export const mainNavItems: NavItemData[] = [
  * Nav phụ hiện khi bấm "Xem thêm". Rỗng trong HTML gốc (JS runtime cũ tự inject
  * theo quyền user) — để trống mặc định, thêm mục khi có yêu cầu thực tế.
  */
-export const moreNavItems: NavItemData[] = [];
+export const moreNavItems: NavItemData[] = [
+  { id: "offboarding", label: "Nghỉ việc / Bàn giao", href: "/offboarding", icon: "people" },
+  { id: "ai-finance", label: "Tài chính AI", href: "/ai-finance", icon: "dashboard" },
+  { id: "profile", label: "Hồ sơ của tôi", href: "/profile", icon: "people" },
+  { id: "documents", label: "Văn bản của tôi", href: "/documents", icon: "wiki" },
+  { id: "leave", label: "Nghỉ phép", href: "/leave", icon: "calendar" },
+  { id: "time-attendance", label: "Chấm công", href: "/time-attendance", icon: "time" },
+  { id: "proposals", label: "Đề xuất & duyệt", href: "/proposals", icon: "tasks" },
+  { id: "reports", label: "Báo cáo", href: "/reports", icon: "dashboard" },
+  { id: "statistics", label: "Thống kê", href: "/statistics", icon: "dashboard" },
+  { id: "automations", label: "Luồng tự động", href: "/automations", icon: "assistant" },
+  { id: "levels", label: "Cấp bậc & công thức", href: "/levels", icon: "settings" },
+];

@@ -8,7 +8,8 @@ def get_minio_client():
     access_key = getattr(settings, 'MINIO_ACCESS_KEY', os.getenv('MINIO_ACCESS_KEY', 'minioadmin'))
     secret_key = getattr(settings, 'MINIO_SECRET_KEY', os.getenv('MINIO_SECRET_KEY', 'minioadmin'))
     secure = getattr(settings, 'MINIO_USE_SSL', False)
-    return Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure)
+    region = getattr(settings, 'MINIO_REGION', None)
+    return Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure, region=region)
 
 
 def upload_file_to_minio(file_obj, filename=None):
@@ -30,6 +31,12 @@ def upload_file_to_minio(file_obj, filename=None):
         content_type=getattr(file_obj, 'content_type', 'application/octet-stream')
     )
 
-    external_endpoint = getattr(settings, 'MINIO_EXTERNAL_URL', f"http://{client._base_url}")
-    file_url = f"{external_endpoint}/{bucket_name}/{object_name}"
+    public_base = getattr(settings, 'MINIO_PUBLIC_URL_BASE', None)
+    if public_base:
+        # R2 (và các dịch vụ dùng subdomain/custom-domain riêng cho từng bucket)
+        # không có tên bucket trong path public.
+        file_url = f"{public_base.rstrip('/')}/{object_name}"
+    else:
+        external_endpoint = getattr(settings, 'MINIO_EXTERNAL_URL', f"http://{client._base_url}")
+        file_url = f"{external_endpoint}/{bucket_name}/{object_name}"
     return {'url': file_url, 'name': name}

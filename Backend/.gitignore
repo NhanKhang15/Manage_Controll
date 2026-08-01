@@ -4,4 +4,4 @@ __pycache__/
 *.pyc
 db.sqlite3
 config/google_credentials.json
-
+companies/management/commands/seed_more_data.py
