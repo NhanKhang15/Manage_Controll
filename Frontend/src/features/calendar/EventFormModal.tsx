@@ -4,6 +4,7 @@ import { Button } from "../../components/ui/Button";
 import { createEvent, updateEvent, getDrivers, uploadFile } from "../../api/events";
 import { apiFetch } from "../../api/client";
 import type { CalendarEventItem } from "../../types/calendar";
+import { getAvatarProps } from "../../utils/avatar";
 
 export interface EventFormModalProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ export function EventFormModal({
   const [giftNote, setGiftNote] = useState("");
 
   const [inviteAllCompany, setInviteAllCompany] = useState(false);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
 
   const [employees, setEmployees] = useState<any[]>([]);
@@ -88,28 +90,22 @@ export function EventFormModal({
       setLoading(false);
       setTimeout(() => titleInputRef.current?.focus(), 50);
 
-      // Fetch drivers & employees
+      // Fetch drivers, departments & employees
       if (selectedCompanyId) {
         getDrivers(selectedCompanyId).then(setDrivers).catch(() => {});
+        apiFetch(`/departments/?company_id=${selectedCompanyId}`)
+          .then((data) => setDepartments(Array.isArray(data) ? data : []))
+          .catch(() => setDepartments([]));
         apiFetch(`/employees/?company_id=${selectedCompanyId}`)
-          .then((data) => {
-            console.log('[EventForm] Loaded employees for company:', data?.length);
-            setEmployees(Array.isArray(data) ? data : []);
-          })
-          .catch((err) => {
-            console.error('[EventForm] Failed to load employees:', err);
-            setEmployees([]);
-          });
+          .then((data) => setEmployees(Array.isArray(data) ? data : []))
+          .catch(() => setEmployees([]));
       } else {
+        apiFetch(`/departments/`)
+          .then((data) => setDepartments(Array.isArray(data) ? data : []))
+          .catch(() => setDepartments([]));
         apiFetch(`/employees/`)
-          .then((data) => {
-            console.log('[EventForm] Loaded all employees:', data?.length);
-            setEmployees(Array.isArray(data) ? data : []);
-          })
-          .catch((err) => {
-            console.error('[EventForm] Failed to load employees:', err);
-            setEmployees([]);
-          });
+          .then((data) => setEmployees(Array.isArray(data) ? data : []))
+          .catch(() => setEmployees([]));
       }
     }
   }, [isOpen, defaultDate, selectedCompanyId, editingEvent]);
@@ -130,6 +126,10 @@ export function EventFormModal({
     e.full_name?.toLowerCase().includes(empQuery.toLowerCase()) ||
     e.email?.toLowerCase().includes(empQuery.toLowerCase())
   );
+
+  const halfDepts = Math.ceil(departments.length / 2);
+  const leftColDepts = departments.slice(0, halfDepts);
+  const rightColDepts = departments.slice(halfDepts);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
@@ -152,7 +152,12 @@ export function EventFormModal({
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!title.trim() || loading) return;
+    if (!title.trim()) {
+      setError("Vui lòng nhập tiêu đề (bắt buộc).");
+      titleInputRef.current?.focus();
+      return;
+    }
+    if (loading) return;
 
     setLoading(true);
     setError(null);
@@ -233,7 +238,7 @@ export function EventFormModal({
         )}
 
         <label>
-          Tiêu đề
+          Tiêu đề <span className="text-red-500" title="Bắt buộc">*</span>
           <input
             ref={titleInputRef}
             type="text"
@@ -241,7 +246,15 @@ export function EventFormModal({
             disabled={loading}
             placeholder="Họp giao ban, demo khách hàng…"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (e.target.value.trim() && error === "Vui lòng nhập tiêu đề (bắt buộc).") {
+                setError(null);
+              }
+            }}
+            style={{
+              borderColor: error && !title.trim() ? "var(--red, #ef4444)" : undefined,
+            }}
           />
         </label>
 
@@ -354,149 +367,216 @@ export function EventFormModal({
               )}
             </div>
 
-            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                <div style={{ fontWeight: 700 }}>👥 Mời tham gia</div>
-                {selectedEmpIds.length > 0 && !inviteAllCompany && (
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    background: "var(--brand)",
-                    color: "#fff",
-                    borderRadius: 20,
-                    padding: "2px 10px",
-                    letterSpacing: 0.3,
-                  }}>
-                    Đã chọn {selectedEmpIds.length}
-                  </span>
-                )}
+            {/* 1. Section Mời tham gia */}
+            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14, marginTop: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: "#374151", marginBottom: 8 }}>
+                Mời tham gia
               </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 8 }}>
+
+              {/* 2. Checkbox "Cả công ty" — full width, nổi bật */}
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  borderRadius: 8,
+                  background: inviteAllCompany ? "rgba(99,102,241,0.08)" : "#f9fafb",
+                  padding: "10px 12px",
+                  marginBottom: 10,
+                  cursor: "pointer",
+                  border: inviteAllCompany ? "1px solid var(--brand)" : "1px solid #f3f4f6",
+                  transition: "all 0.15s",
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={inviteAllCompany}
                   onChange={(e) => setInviteAllCompany(e.target.checked)}
+                  style={{ width: 16, height: 16, margin: 0, flexShrink: 0, cursor: "pointer", accentColor: "var(--brand)" }}
                 />
-                <span>Cả công ty</span>
+                <span style={{ fontSize: 14, fontWeight: 500, color: "#1f2937" }}>🏢 Cả công ty</span>
               </label>
 
-              {!inviteAllCompany && (
-                <div style={{ paddingLeft: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>Nhân viên ({employees.length}):</div>
-                    {(() => {
-                      const selectableIds = filteredEmployees.filter((e) => e.has_account !== false).map((e) => e.id);
-                      const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedEmpIds.includes(id));
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (allSelected) {
-                              setSelectedEmpIds(selectedEmpIds.filter((id) => !selectableIds.includes(id)));
-                            } else {
-                              const merged = new Set([...selectedEmpIds, ...selectableIds]);
-                              setSelectedEmpIds(Array.from(merged));
-                            }
-                          }}
-                          style={{
-                            border: "none",
-                            background: "none",
-                            color: "var(--brand)",
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            padding: "2px 4px",
-                          }}
-                        >
-                          {allSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
-                        </button>
-                      );
-                    })()}
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="🔍 Tìm tên nhân viên..."
-                    value={empQuery}
-                    onChange={(e) => setEmpQuery(e.target.value)}
-                    style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 13, marginBottom: 6 }}
-                  />
-                  {employees.length === 0 && (
-                    <div style={{ padding: "8px 0", fontSize: 12.5, color: "var(--muted)", textAlign: "center" }}>
-                      ⚠️ Không tìm thấy nhân viên nào. Hãy kiểm tra công ty đã chọn.
-                    </div>
-                  )}
-                  <div style={{ maxHeight: 160, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2, paddingRight: 4 }}>
-                    {filteredEmployees.map((emp) => {
-                      const hasAccount = emp.has_account !== false;
-                      const initials = emp.full_name
-                        ? emp.full_name.split(" ").map((w: string) => w[0]).slice(-2).join("").toUpperCase()
-                        : "?";
+              {/* Dưới "Cả công ty": mờ đi & disable khi inviteAllCompany = true */}
+              <div
+                style={{
+                  opacity: inviteAllCompany ? 0.45 : 1,
+                  pointerEvents: inviteAllCompany ? "none" : "auto",
+                  transition: "opacity 0.2s",
+                }}
+              >
+                {/* 3. Lưới phòng ban — grid 2 cột */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 16px", marginBottom: 12 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {leftColDepts.map((dept) => {
+                      const isChecked = selectedDeptIds.includes(dept.id);
                       return (
                         <label
-                          key={emp.id}
-                          title={!hasAccount ? "Nhân viên chưa có tài khoản đăng nhập — không thể mời" : emp.email}
+                          key={dept.id}
                           style={{
                             display: "flex",
+                            flexDirection: "row",
                             alignItems: "center",
                             gap: 8,
-                            fontSize: 12.5,
-                            cursor: !hasAccount ? "not-allowed" : "pointer",
-                            opacity: !hasAccount ? 0.45 : 1,
-                            padding: "4px 6px",
-                            borderRadius: 8,
-                            background: selectedEmpIds.includes(emp.id) ? "var(--brand-soft, rgba(99,102,241,0.08))" : "transparent",
-                            transition: "background 0.15s",
+                            padding: "5px 6px",
+                            fontSize: 13.5,
+                            color: "#374151",
+                            cursor: "pointer",
+                            borderRadius: 6,
                           }}
                         >
                           <input
                             type="checkbox"
-                            disabled={!hasAccount}
-                            checked={selectedEmpIds.includes(emp.id)}
+                            disabled={inviteAllCompany}
+                            checked={isChecked}
                             onChange={(e) => {
-                              if (e.target.checked) setSelectedEmpIds([...selectedEmpIds, emp.id]);
-                              else setSelectedEmpIds(selectedEmpIds.filter((id) => id !== emp.id));
+                              if (e.target.checked) setSelectedDeptIds([...selectedDeptIds, dept.id]);
+                              else setSelectedDeptIds(selectedDeptIds.filter((id) => id !== dept.id));
                             }}
-                            style={{ accentColor: "var(--brand)" }}
+                            style={{ width: 15, height: 15, margin: 0, flexShrink: 0, cursor: "pointer", accentColor: "var(--brand)" }}
                           />
-                          {/* Avatar initials */}
-                          <span style={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: "50%",
-                            background: hasAccount ? "var(--brand)" : "var(--muted)",
-                            color: "#fff",
+                          <span>{dept.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {rightColDepts.map((dept) => {
+                      const isChecked = selectedDeptIds.includes(dept.id);
+                      return (
+                        <label
+                          key={dept.id}
+                          style={{
                             display: "flex",
+                            flexDirection: "row",
                             alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 10,
-                            fontWeight: 700,
-                            flexShrink: 0,
-                          }}>{initials}</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {emp.full_name}
-                            </div>
-                            <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {emp.position_title || emp.email}
-                            </div>
-                          </div>
-                          {!hasAccount && (
-                            <span style={{
-                              fontSize: 10,
-                              background: "var(--line)",
-                              color: "var(--muted)",
-                              borderRadius: 6,
-                              padding: "1px 6px",
-                              whiteSpace: "nowrap",
-                              flexShrink: 0,
-                            }}>Chưa có TK</span>
-                          )}
+                            gap: 8,
+                            padding: "5px 6px",
+                            fontSize: 13.5,
+                            color: "#374151",
+                            cursor: "pointer",
+                            borderRadius: 6,
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={inviteAllCompany}
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedDeptIds([...selectedDeptIds, dept.id]);
+                              else setSelectedDeptIds(selectedDeptIds.filter((id) => id !== dept.id));
+                            }}
+                            style={{ width: 15, height: 15, margin: 0, flexShrink: 0, cursor: "pointer", accentColor: "var(--brand)" }}
+                          />
+                          <span>{dept.name}</span>
                         </label>
                       );
                     })}
                   </div>
                 </div>
-              )}
+
+                {/* 4. Tiêu đề phụ + ô tìm kiếm cùng 1 hàng */}
+                <div style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, marginBottom: 8 }}>
+                  <span style={{ fontSize: 13.5, color: "#6b7280", fontWeight: 500 }}>Hoặc chọn từng người</span>
+                  <input
+                    type="text"
+                    placeholder="Tìm tên..."
+                    value={empQuery}
+                    onChange={(e) => setEmpQuery(e.target.value)}
+                    style={{
+                      width: 180,
+                      padding: "5px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #d1d5db",
+                      fontSize: 13,
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                {/* 5. Danh sách nhân viên — scrollable box, avatar 2 chữ cái */}
+                <div
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 10,
+                    maxHeight: 200,
+                    overflowY: "auto",
+                    background: "#fff",
+                  }}
+                >
+                  {filteredEmployees.length === 0 ? (
+                    <div style={{ padding: 12, fontSize: 12.5, color: "#9ca3af", textAlign: "center" }}>
+                      Không tìm thấy nhân viên nào
+                    </div>
+                  ) : (
+                    filteredEmployees.map((emp) => {
+                      const { initials, backgroundColor } = getAvatarProps(emp);
+                      const isChecked = selectedEmpIds.includes(emp.id);
+                      return (
+                        <label
+                          key={emp.id}
+                          style={{
+                            display: "flex",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #f3f4f6",
+                            transition: "background 0.15s",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={inviteAllCompany}
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedEmpIds([...selectedEmpIds, emp.id]);
+                              else setSelectedEmpIds(selectedEmpIds.filter((id) => id !== emp.id));
+                            }}
+                            style={{ width: 16, height: 16, margin: 0, flexShrink: 0, cursor: "pointer", accentColor: "var(--brand)" }}
+                          />
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              backgroundColor,
+                              color: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {initials}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 500, color: "#1f2937", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {emp.full_name}
+                            </div>
+                            {emp.primary_department_name ? (
+                              <div style={{ fontSize: 11.5, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {emp.primary_department_name}
+                              </div>
+                            ) : null}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* 6. Text hướng dẫn cuối */}
+              <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 12, lineHeight: 1.4 }}>
+                Mời theo <b>bộ phận</b>, chọn <b>từng người</b>, hoặc gõ lệnh ở Trợ lý:{" "}
+                <i>"Đặt lịch họp ... với phòng Kinh doanh 10h mai"</i>.
+              </p>
             </div>
           </>
         )}
@@ -527,7 +607,7 @@ export function EventFormModal({
           <Button type="button" variant="ghost" disabled={loading} onClick={onClose}>
             Hủy
           </Button>
-          <Button variant="primary" type="submit" disabled={loading || !title.trim()}>
+          <Button variant="primary" type="submit" disabled={loading}>
             {loading ? "Đang lưu..." : "Lưu lịch"}
           </Button>
         </div>

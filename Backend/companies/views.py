@@ -75,3 +75,24 @@ def delete_company(request, pk):
         return Response(status=status.HTTP_204_NO_CONTENT)
     except Company.DoesNotExist:
         return Response({'detail': 'Công ty không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+def get_departments(request):
+    company_id = request.query_params.get('company_id')
+    from .models import Department
+    qs = Department.objects.all()
+    if company_id:
+        qs = qs.filter(company_id=company_id)
+    qs = qs.order_by('order_index', 'name')
+
+    data = [
+        {
+            'id': str(d.id),
+            'name': d.name,
+            'company_id': str(d.company_id),
+            'order_index': d.order_index,
+        }
+        for d in qs
+    ]
+    return Response(data)

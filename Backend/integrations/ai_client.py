@@ -44,9 +44,10 @@ def call_llm(
         # tiên hơn OPENROUTER_API_KEY ở .env (bên dưới), kể cả khi tắt AI.
         if not setting.is_ai_enabled:
             raise AIConfigError("Tính năng AI đang tắt cho công ty này")
-        if not setting.api_key_encrypted:
-            raise AIConfigError("Chưa có API key cho công ty này")
-        api_key = decrypt_api_key(setting.api_key_encrypted)
+        try:
+            api_key = decrypt_api_key(setting.api_key_encrypted)
+        except ValueError as exc:
+            raise AIConfigError(str(exc))
         if not api_key:
             raise AIConfigError("API key không hợp lệ")
     else:

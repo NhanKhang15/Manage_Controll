@@ -25,9 +25,14 @@ export function CreateEventModal({ isOpen, onClose, onCreate }: CreateEventModal
   const [time, setTime] = useState("");
   const [location, setLocation] = useState("");
   const [visibility, setVisibility] = useState<EventItem["visibility"]>("public");
+  const [error, setError] = useState<string | null>(null);
 
   function handleSubmit() {
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      setError("Vui lòng nhập tên sự kiện (bắt buộc).");
+      return;
+    }
+    setError(null);
     onCreate({
       id: `ev-${Date.now()}`,
       title: title.trim(),
@@ -49,8 +54,18 @@ export function CreateEventModal({ isOpen, onClose, onCreate }: CreateEventModal
     <Modal isOpen={isOpen} title="✨ Tạo sự kiện" onClose={onClose}>
       <form className="settings-form" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
         <label>
-          Tên sự kiện
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="VD: Ra mắt sản phẩm mới" />
+          Tên sự kiện <span className="text-red-500" title="Bắt buộc">*</span>
+          <input
+            type="text"
+            required
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (e.target.value.trim()) setError(null);
+            }}
+            placeholder="VD: Ra mắt sản phẩm mới"
+            style={{ borderColor: error && !title.trim() ? "var(--red, #ef4444)" : undefined }}
+          />
         </label>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <label style={{ flex: 1, minWidth: 120 }}>
@@ -73,6 +88,9 @@ export function CreateEventModal({ isOpen, onClose, onCreate }: CreateEventModal
             <option value="private">🔒 Nội bộ</option>
           </select>
         </label>
+
+        {error && <div className="text-sm text-red-600 font-medium">{error}</div>}
+
         <Button variant="primary" type="submit">
           ✨ Tạo sự kiện
         </Button>

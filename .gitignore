@@ -97,3 +97,5 @@ $RECYCLE.BIN/
 !Frontend/index.html
 raw-html/
 Kế hoạch 2 tuần.pdf
+*.sql
+*.db

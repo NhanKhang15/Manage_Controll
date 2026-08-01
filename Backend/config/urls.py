@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/tasks/<str:pk>/', task_views.delete_task, name='delete_task'),
     path('api/task-assignments/', task_views.create_task_assignment, name='create_task_assignment'),
     path('api/employees/', employee_views.get_employees, name='get_employees'),
+    path('api/departments/', company_views.get_departments, name='get_departments'),
 
     # Events & Drivers
     path('api/events/', event_views.get_events, name='get_events'),
