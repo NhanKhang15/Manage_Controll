@@ -8,6 +8,7 @@ import { DemoAccountPicker } from "../features/auth/DemoAccountPicker";
 import { useToast } from "../components/ui/Toast";
 import { login } from "../api/auth";
 import { setTokens } from "../auth/tokenStorage";
+import { useAuth } from "../auth/AuthContext";
 
 /**
  * LoginPage
@@ -16,6 +17,7 @@ import { setTokens } from "../auth/tokenStorage";
  */
 export function LoginPage() {
   const navigate = useNavigate();
+  const { refetch } = useAuth();
   const [lang, setLang] = useState("vi");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,6 +30,7 @@ export function LoginPage() {
     try {
       const { access, refresh } = await login(email, password);
       setTokens(access, refresh);
+      await refetch();
       showToast("Đăng nhập thành công!", "success");
       navigate("/assistant");
     } catch (err: any) {

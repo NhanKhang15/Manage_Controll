@@ -10,13 +10,6 @@ export interface ChatMessageItemProps {
   message: ChatMessage;
 }
 
-const MODEL_LABEL: Record<string, string> = {
-  claude: "Claude",
-  gpt: "GPT",
-  gemini: "Gemini",
-  auto: "Tự động",
-};
-
 export function ChatMessageItem({ message }: ChatMessageItemProps) {
   const isUser = message.role === "user";
   const time = new Date(message.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
@@ -25,10 +18,7 @@ export function ChatMessageItem({ message }: ChatMessageItemProps) {
     <div className={`chat-row ${isUser ? "user" : "assistant"}`}>
       <div className={`chat-bubble ${isUser ? "user" : "assistant"}`}>
         <div>{message.content}</div>
-        <span className="chat-time">
-          {!isUser && message.model && `${MODEL_LABEL[message.model] ?? message.model} · `}
-          {time}
-        </span>
+        <span className="chat-time">{time}</span>
       </div>
     </div>
   );

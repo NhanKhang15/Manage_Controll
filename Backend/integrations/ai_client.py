@@ -29,13 +29,18 @@ def call_llm(
     max_tokens: int = 1000,
     system_prompt: str | None = None,
     stream: bool = False,
-) -> str:
+    tools: list[dict] | None = None,
+) -> str | dict:
     """Hàm DUY NHẤT gọi LLM (qua OpenRouter) trong toàn hệ thống.
 
     messages: dạng [{"role": "user"/"assistant", "content": "..."}] — hỗ trợ
     multi-turn ngay từ đầu để tái sử dụng được cho Trợ lý (chatbot) sau này.
     stream: để False cho các tác vụ một lượt (tóm tắt); chatbot sau này bật
     True để trả chữ dần (Server-Sent Events chuẩn OpenAI).
+    tools: schema function-calling chuẩn OpenAI (Trợ lý AI dùng). Khi truyền
+    tools, hàm trả về nguyên message dict (có thể chứa "tool_calls") thay vì
+    chuỗi text, để caller tự xử lý vòng lặp gọi tool — không phá vỡ các call
+    site cũ (tóm tắt cuộc họp...) vốn không truyền tools và vẫn nhận về string.
     """
     setting = CompanyAISetting.objects.filter(company_id=company_id).first()
 
@@ -67,6 +72,9 @@ def call_llm(
         "max_tokens": max_tokens,
         "stream": stream,
     }
+    if tools:
+        payload["tools"] = tools
+        payload["tool_choice"] = "auto"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -82,4 +90,5 @@ def call_llm(
     response = requests.post(OPENROUTER_URL, json=payload, headers=headers, timeout=60)
     response.raise_for_status()
     data = response.json()
-    return data["choices"][0]["message"]["content"]
+    message = data["choices"][0]["message"]
+    return message if tools else message["content"]

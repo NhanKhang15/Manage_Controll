@@ -9,6 +9,7 @@ from employees import auth_views as employee_auth_views
 from events import views as event_views
 from meetings import views as meeting_views
 from integrations import views as integrations_views
+from assistant import views as assistant_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -53,4 +54,9 @@ urlpatterns = [
 
     # AI settings (module AI dùng chung)
     path('api/settings/ai/', integrations_views.ai_settings_view, name='ai_settings'),
+
+    # Trợ lý AI (chatbot + tool-calling)
+    path('api/assistant/conversations/', assistant_views.conversations_view, name='assistant_conversations'),
+    path('api/assistant/conversations/<str:pk>/', assistant_views.conversation_delete_view, name='assistant_conversation_delete'),
+    path('api/assistant/conversations/<str:pk>/messages/', assistant_views.conversation_messages_view, name='assistant_conversation_messages'),
 ]

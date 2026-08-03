@@ -6,6 +6,7 @@ import { RegisterForm, type RegisterFormValues } from "../features/auth/Register
 import { useToast } from "../components/ui/Toast";
 import { register } from "../api/auth";
 import { setTokens } from "../auth/tokenStorage";
+import { useAuth } from "../auth/AuthContext";
 
 const EMPTY_VALUES: RegisterFormValues = { name: "", email: "", password: "" };
 
@@ -16,6 +17,7 @@ const EMPTY_VALUES: RegisterFormValues = { name: "", email: "", password: "" };
  */
 export function RegisterPage() {
   const navigate = useNavigate();
+  const { refetch } = useAuth();
   const [values, setValues] = useState<RegisterFormValues>(EMPTY_VALUES);
   const [submitting, setSubmitting] = useState(false);
   const { showToast } = useToast();
@@ -26,6 +28,7 @@ export function RegisterPage() {
     try {
       const { access, refresh } = await register(values.name, values.email, values.password);
       setTokens(access, refresh);
+      await refetch();
       showToast("Đăng ký thành công! Tài khoản của bạn đã sẵn sàng sử dụng.", "success");
       setValues(EMPTY_VALUES);
       navigate("/assistant");

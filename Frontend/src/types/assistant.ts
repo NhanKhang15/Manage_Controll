@@ -1,5 +1,3 @@
-export type AiModelId = 'auto' | 'claude' | 'gpt' | 'gemini';
-
 export interface NavItemData {
   id: string;
   label: string;
@@ -25,7 +23,6 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  model?: AiModelId;
   createdAt: string;
 }
 

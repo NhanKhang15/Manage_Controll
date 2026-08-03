@@ -9,9 +9,10 @@ export interface ComposerInputProps {
   onChange: (v: string) => void;
   placeholder: string;
   onEnter?: () => void;
+  disabled?: boolean;
 }
 
-export function ComposerInput({ value, onChange, placeholder, onEnter }: ComposerInputProps) {
+export function ComposerInput({ value, onChange, placeholder, onEnter, disabled }: ComposerInputProps) {
   return (
     <input
       id="chatIn"
@@ -19,6 +20,7 @@ export function ComposerInput({ value, onChange, placeholder, onEnter }: Compose
       autoComplete="off"
       value={value}
       placeholder={placeholder}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === "Enter" && !e.shiftKey) {
