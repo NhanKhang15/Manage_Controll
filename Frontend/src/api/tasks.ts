@@ -1,5 +1,24 @@
 import { apiFetch } from "./client";
-import type { TreeNode } from "./companies";
+import type { TaskAssigneeRef, TreeNode } from "./companies";
+
+export interface FlatTask {
+  id: string;
+  name: string;
+  status: string;
+  completed: boolean;
+  due_date: string | null;
+  project: { id: string; name: string };
+  assignees: TaskAssigneeRef[];
+  department: string | null;
+}
+
+export async function getMyTasks(companyId: string): Promise<FlatTask[]> {
+  return apiFetch<FlatTask[]>(`/tasks/mine/?company_id=${companyId}`);
+}
+
+export async function getDepartmentTasks(companyId: string): Promise<FlatTask[]> {
+  return apiFetch<FlatTask[]>(`/tasks/department/?company_id=${companyId}`);
+}
 
 export async function createTask(data: { project_id: string; name: string }): Promise<TreeNode> {
   return apiFetch<TreeNode>("/tasks/", {

@@ -1,60 +1,81 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AppShellPage } from "../layout/AppShellPage";
 import { Panel } from "../components/ui/Panel";
 import { Button } from "../components/ui/Button";
 import { useToast } from "../components/ui/Toast";
-
-export interface ProposalItem {
-  id: string;
-  title: string;
-  amount: string;
-  note: string;
-  requester: string;
-  status: "pending" | "approved" | "rejected";
-}
+import { useAuth } from "../auth/AuthContext";
+import { ProposalApprovalList } from "../features/proposals/ProposalApprovalList";
+import { listProposals, createProposal, decideProposal, formatAmountVi, type Proposal } from "../api/proposals";
 
 export function ProposalsPage() {
+  const { employee } = useAuth();
+  const companyId = employee?.companies?.[0]?.id ?? null;
+  const canApproveProposals = employee?.companies?.[0]?.can_approve_proposals ?? false;
   const { showToast } = useToast();
+
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState(0);
   const [content, setContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const [pendingProposals, setPendingProposals] = useState<ProposalItem[]>([
-    { id: "p1", title: "Tạm ứng 50% hợp đồng CRM", amount: "425 triệu", note: "Nhà cung cấp yêu cầu tạm ứng trước khi triển khai", requester: "Hoàng Sơn", status: "pending" },
-    { id: "p2", title: "Mua gói API Zalo OA", amount: "15 triệu", note: "15tr/năm — kết nối Zalo OA vào CRM", requester: "Nguyễn Thu Lan", status: "pending" },
-    { id: "p3", title: "Ngân sách OCR FPT.AI", amount: "12 triệu", note: "12tr/năm theo chốt cuộc họp OCR", requester: "Đặng Quốc Huy", status: "pending" },
-  ]);
+  const [pendingProposals, setPendingProposals] = useState<Proposal[]>([]);
+  const [myProposals, setMyProposals] = useState<Proposal[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [myProposals, setMyProposals] = useState<ProposalItem[]>([]);
-
-  function handleCreateProposal(e: FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
-
-    const newItem: ProposalItem = {
-      id: `prop-${Date.now()}`,
-      title: title.trim(),
-      amount: amount > 0 ? `${amount} VNĐ` : "0 VNĐ",
-      note: content.trim(),
-      requester: "Lê Xuân Huy",
-      status: "pending",
+  useEffect(() => {
+    if (!companyId) return;
+    let isMounted = true;
+    Promise.all([listProposals(companyId, "pending"), listProposals(companyId, "mine")])
+      .then(([pending, mine]) => {
+        if (!isMounted) return;
+        setPendingProposals(pending);
+        setMyProposals(mine);
+      })
+      .catch(() => showToast("Không tải được danh sách đề xuất", "danger"))
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
     };
+  }, [companyId, showToast]);
 
-    setMyProposals((prev) => [newItem, ...prev]);
-    setTitle("");
-    setAmount(0);
-    setContent("");
-    showToast("Đã gửi đề xuất thành công", "success");
+  async function handleCreateProposal(e: FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || !companyId || submitting) return;
+
+    setSubmitting(true);
+    try {
+      const created = await createProposal({
+        company_id: companyId,
+        title: title.trim(),
+        amount: amount > 0 ? amount : null,
+        note: content.trim(),
+      });
+      setMyProposals((prev) => [created, ...prev]);
+      if (created.status === "pending") setPendingProposals((prev) => [created, ...prev]);
+      setTitle("");
+      setAmount(0);
+      setContent("");
+      showToast("Đã gửi đề xuất thành công", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không gửi được đề xuất", "danger");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function handleApprove(id: string) {
-    setPendingProposals((prev) => prev.filter((p) => p.id !== id));
-    showToast("Đã duyệt đề xuất thành công", "success");
-  }
-
-  function handleReject(id: string) {
-    setPendingProposals((prev) => prev.filter((p) => p.id !== id));
-    showToast("Đã từ chối đề xuất", "default");
+  async function handleDecide(proposal: Proposal, decision: "approved" | "rejected") {
+    const snapshot = pendingProposals;
+    setPendingProposals((prev) => prev.filter((p) => p.id !== proposal.id));
+    try {
+      const updated = await decideProposal(proposal.id, decision);
+      setMyProposals((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      showToast(decision === "approved" ? "Đã duyệt đề xuất thành công" : "Đã từ chối đề xuất", decision === "approved" ? "success" : "default");
+    } catch (err) {
+      setPendingProposals(snapshot);
+      showToast(err instanceof Error ? err.message : "Không xử lý được đề xuất", "danger");
+    }
   }
 
   return (
@@ -64,115 +85,104 @@ export function ProposalsPage() {
         <p className="page-sub">Gửi đề xuất (mua sắm, tạm ứng, chi phí…) và theo dõi duyệt.</p>
       </div>
 
-      {/* New Proposal Form */}
-      <Panel>
-        <div className="panel-h">Tạo đề xuất mới</div>
-        <form onSubmit={handleCreateProposal} className="settings-form" style={{ maxWidth: 640 }}>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <label style={{ flex: 2, minWidth: 220 }}>
-              Tiêu đề <span className="text-red-500">*</span>
-              <input
-                type="text"
-                required
-                placeholder="VD: Mua 5 màn hình cho phòng KD"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </label>
-            <label style={{ flex: 1, minWidth: 140 }}>
-              Số tiền (đ)
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
-              />
-            </label>
-          </div>
-          <label>
-            Nội dung
-            <textarea
-              rows={3}
-              placeholder="Mô tả chi tiết…"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-          </label>
-          <Button variant="primary" type="submit" style={{ alignSelf: "flex-start", marginTop: 6 }}>
-            Gửi đề xuất
-          </Button>
-        </form>
-      </Panel>
+      {!companyId ? (
+        <Panel>Bạn chưa thuộc công ty nào nên chưa thể dùng tính năng đề xuất.</Panel>
+      ) : (
+        <>
+          {/* New Proposal Form */}
+          <Panel>
+            <div className="panel-h">Tạo đề xuất mới</div>
+            <form onSubmit={handleCreateProposal} className="settings-form" style={{ maxWidth: 640 }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <label style={{ flex: 2, minWidth: 220 }}>
+                  Tiêu đề <span className="text-red-500">*</span>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: Mua 5 màn hình cho phòng KD"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </label>
+                <label style={{ flex: 1, minWidth: 140 }}>
+                  Số tiền (đ)
+                  <input type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+                </label>
+              </div>
+              <label>
+                Nội dung
+                <textarea rows={3} placeholder="Mô tả chi tiết…" value={content} onChange={(e) => setContent(e.target.value)} />
+              </label>
+              <Button variant="primary" type="submit" disabled={submitting} style={{ alignSelf: "flex-start", marginTop: 6 }}>
+                {submitting ? "Đang gửi…" : "Gửi đề xuất"}
+              </Button>
+            </form>
+          </Panel>
 
-      {/* Pending Approval List */}
-      <Panel>
-        <div className="panel-h">Đề xuất chờ tôi duyệt ({pendingProposals.length})</div>
-        {pendingProposals.length === 0 ? (
-          <p className="muted" style={{ fontSize: 13 }}>Không có đề xuất nào chờ duyệt.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {pendingProposals.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "12px 16px",
-                  borderRadius: 10,
-                  border: "1px solid var(--line)",
-                  background: "var(--bg)",
-                }}
-              >
-                <div>
-                  <b style={{ fontSize: 15 }}>{item.title}</b>{" "}
-                  <span style={{ color: "var(--brand)", fontWeight: 700 }}>{item.amount}</span>
-                  <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                    {item.note} · Đề xuất bởi <b>{item.requester}</b>
+          {loading ? (
+            <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontSize: 14 }}>
+              Đang tải dữ liệu từ máy chủ...
+            </div>
+          ) : (
+            <>
+              {/* Pending Approval List */}
+              <Panel>
+                <div className="panel-h">
+                  {canApproveProposals ? "Đề xuất chờ tôi duyệt" : "Đề xuất chờ duyệt"} ({pendingProposals.length})
+                </div>
+                <ProposalApprovalList
+                  proposals={pendingProposals}
+                  onApprove={(p) => handleDecide(p, "approved")}
+                  onReject={(p) => handleDecide(p, "rejected")}
+                  canApprove={canApproveProposals}
+                />
+              </Panel>
+
+              {/* My Proposals */}
+              <Panel>
+                <div className="panel-h">Đề xuất của tôi</div>
+                {myProposals.length === 0 ? (
+                  <p className="muted" style={{ fontSize: 13 }}>Chưa có đề xuất nào.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {myProposals.map((item) => (
+                      <div
+                        key={item.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "10px 14px",
+                          borderRadius: 8,
+                          border: "1px solid var(--line)",
+                          fontSize: 13,
+                        }}
+                      >
+                        <div>
+                          <b>{item.title}</b> ({formatAmountVi(item.amount)}){" "}
+                          <span className="muted">{item.note && `• ${item.note}`}</span>
+                        </div>
+                        <span
+                          className="alert-tag"
+                          style={
+                            item.status === "approved"
+                              ? { background: "#DCFCE7", color: "#15803D" }
+                              : item.status === "rejected"
+                                ? { background: "#FEE2E2", color: "#B91C1C" }
+                                : { background: "var(--brand-soft)", color: "var(--brand)" }
+                          }
+                        >
+                          {item.status === "approved" ? "Đã duyệt" : item.status === "rejected" ? "Từ chối" : "Chờ duyệt"}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Button size="sm" variant="approve" onClick={() => handleApprove(item.id)}>
-                    ✓ Duyệt
-                  </Button>
-                  <Button size="sm" variant="reject" onClick={() => handleReject(item.id)}>
-                    ✕ Từ chối
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
-
-      {/* My Proposals */}
-      <Panel>
-        <div className="panel-h">Đề xuất của tôi</div>
-        {myProposals.length === 0 ? (
-          <p className="muted" style={{ fontSize: 13 }}>Chưa có đề xuất nào.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {myProposals.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--line)",
-                  fontSize: 13,
-                }}
-              >
-                <div>
-                  <b>{item.title}</b> ({item.amount}) <span className="muted">{item.note && `• ${item.note}`}</span>
-                </div>
-                <span className="alert-tag alert-soft">Chờ duyệt</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
+                )}
+              </Panel>
+            </>
+          )}
+        </>
+      )}
     </AppShellPage>
   );
 }

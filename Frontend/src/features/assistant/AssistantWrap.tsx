@@ -8,6 +8,7 @@ import { AttentionPanel } from "./AttentionPanel/AttentionPanel";
 import { Panel } from "../../components/ui/Panel";
 import { useToast } from "../../components/ui/Toast";
 import { useAuth } from "../../auth/AuthContext";
+import { uploadFile } from "../../api/events";
 import {
   listConversations,
   createConversation,
@@ -18,6 +19,12 @@ import {
   type AssistantMessage,
 } from "../../api/assistant";
 import type { AttnCategory, AttentionItem, ChatMessage, UserProfile } from "../../types/assistant";
+
+interface PendingAttachment {
+  name: string;
+  url: string | null;
+  uploading: boolean;
+}
 
 /**
  * AssistantWrap
@@ -37,7 +44,14 @@ export interface AssistantWrapProps {
 }
 
 function toChatMessage(m: AssistantMessage): ChatMessage {
-  return { id: m.id, role: m.role, content: m.content, createdAt: m.created_at };
+  return {
+    id: m.id,
+    role: m.role,
+    content: m.content,
+    attachmentUrl: m.attachment_url,
+    attachmentName: m.attachment_name,
+    createdAt: m.created_at,
+  };
 }
 
 function sortByUpdatedDesc(list: Conversation[]): Conversation[] {
@@ -60,16 +74,27 @@ export function AssistantWrap({
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatValue, setChatValue] = useState("");
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedFile, setAttachedFile] = useState<PendingAttachment | null>(null);
   const [sending, setSending] = useState(false);
 
+  async function handleAttachFile(file: File) {
+    setAttachedFile({ name: file.name, url: null, uploading: true });
+    try {
+      const res = await uploadFile(file);
+      setAttachedFile({ name: res.name || file.name, url: res.url, uploading: false });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Tải file lên thất bại", "danger");
+      setAttachedFile(null);
+    }
+  }
+
+  // Mỗi lần vào trang Trợ lý (kể cả sau khi đăng nhập lại) đều bắt đầu bằng 1 cuộc trò
+  // chuyện MỚI (trống) — không tự resume cuộc trò chuyện gần nhất. Danh sách hội thoại cũ
+  // vẫn tải về để hiển thị trong ConversationBar, người dùng tự chọn nếu muốn xem lại.
   useEffect(() => {
     if (!companyId) return;
     listConversations(companyId)
-      .then((convos) => {
-        setConversations(convos);
-        setActiveConversationId(convos[0]?.id ?? null);
-      })
+      .then((convos) => setConversations(convos))
       .catch(() => showToast("Không tải được danh sách cuộc trò chuyện", "danger"));
   }, [companyId, showToast]);
 
@@ -112,9 +137,12 @@ export function AssistantWrap({
     [activeConversationId, conversations, showToast]
   );
 
-  async function handleSend() {
-    const content = chatValue.trim();
-    if (!content || !companyId || sending) return;
+  async function handleSend(overrideContent?: string) {
+    const content = (overrideContent ?? chatValue).trim();
+    const attachment = attachedFile && !attachedFile.uploading && attachedFile.url
+      ? { url: attachedFile.url, name: attachedFile.name }
+      : null;
+    if ((!content && !attachment) || !companyId || sending || attachedFile?.uploading) return;
 
     setChatValue("");
     setAttachedFile(null);
@@ -132,11 +160,18 @@ export function AssistantWrap({
       }
     }
 
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content, createdAt: new Date().toISOString() };
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content,
+      attachmentUrl: attachment?.url ?? null,
+      attachmentName: attachment?.name ?? null,
+      createdAt: new Date().toISOString(),
+    };
     setMessages((prev) => [...prev, userMsg]);
     setSending(true);
     try {
-      const res = await sendMessage(convoId, content);
+      const res = await sendMessage(convoId, content, attachment);
       setMessages((prev) => [...prev, toChatMessage(res.message)]);
       setConversations((prev) => sortByUpdatedDesc(prev.map((c) => (c.id === res.conversation.id ? res.conversation : c))));
     } catch (err) {
@@ -176,19 +211,29 @@ export function AssistantWrap({
             onCreate={handleNewConversation}
             onDelete={handleDeleteConversation}
           />
-          <ChatWindow messages={messages} />
-          {sending && <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>Trợ lý đang trả lời…</div>}
+          <ChatWindow
+            messages={messages}
+            sending={sending}
+            userAvatarUrl={user.avatarUrl}
+            onSuggestion={(text) => handleSend(text)}
+          />
 
           <div className="composer-dock">
-            {attachedFile && <FileChip fileName={attachedFile.name} onRemove={() => setAttachedFile(null)} />}
+            {attachedFile && (
+              <FileChip
+                fileName={attachedFile.uploading ? `${attachedFile.name} (đang tải lên…)` : attachedFile.name}
+                onRemove={() => setAttachedFile(null)}
+              />
+            )}
             <ComposerRow
               value={chatValue}
               onChange={setChatValue}
-              onSend={handleSend}
-              onAttachFile={(file) => setAttachedFile(file)}
+              onSend={() => handleSend()}
+              onAttachFile={handleAttachFile}
               onSelectFeature={(opt) => showToast(`Mở tính năng: ${opt.label}`, "default")}
               onSearchClick={() => showToast("Tìm kiếm đang được phát triển", "default")}
-              disabled={sending}
+              disabled={sending || attachedFile?.uploading}
+              canSend={Boolean(attachedFile?.url)}
             />
           </div>
         </>

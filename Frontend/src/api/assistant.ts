@@ -12,6 +12,8 @@ export interface AssistantMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  attachment_url: string | null;
+  attachment_name: string | null;
   created_at: string;
 }
 
@@ -39,9 +41,17 @@ export function getMessages(conversationId: string): Promise<AssistantMessage[]>
   return apiFetch<AssistantMessage[]>(`/assistant/conversations/${conversationId}/messages/`);
 }
 
-export function sendMessage(conversationId: string, content: string): Promise<SendMessageResponse> {
+export function sendMessage(
+  conversationId: string,
+  content: string,
+  attachment?: { url: string; name: string } | null
+): Promise<SendMessageResponse> {
   return apiFetch<SendMessageResponse>(`/assistant/conversations/${conversationId}/messages/`, {
     method: "POST",
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({
+      content,
+      attachment_url: attachment?.url,
+      attachment_name: attachment?.name,
+    }),
   });
 }

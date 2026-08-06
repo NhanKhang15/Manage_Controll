@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Task, TaskAssignment
+from .serializers import TaskFlatSerializer
 from projects.models import Project
 from employees.models import Employee
 
@@ -38,12 +39,20 @@ def create_task(request):
     return Response(res_data, status=status.HTTP_201_CREATED)
 
 
-@api_view(['PATCH'])
-def update_task(request, pk):
+@api_view(['PATCH', 'DELETE'])
+def task_detail(request, pk):
+    """Gộp update + delete trên cùng 1 URL /api/tasks/<pk>/ — trước đây 2 view
+    riêng (update_task PATCH, delete_task DELETE) đăng ký trùng path khiến
+    Django luôn khớp view đầu tiên bất kể method, làm DELETE không bao giờ
+    tới được delete_task (luôn nhận 405 từ update_task)."""
     try:
         task = Task.objects.get(id=pk)
     except Task.DoesNotExist:
         return Response({'detail': 'Công việc không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'DELETE':
+        task.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     if 'status' in request.data:
         task.status = request.data['status']
@@ -85,14 +94,38 @@ def reorder_tasks(request):
     return Response({'detail': 'Reordered successfully'}, status=status.HTTP_200_OK)
 
 
-@api_view(['DELETE'])
-def delete_task(request, pk):
-    try:
-        task = Task.objects.get(id=pk)
-        task.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    except Task.DoesNotExist:
-        return Response({'detail': 'Công việc không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+@api_view(['GET'])
+def my_tasks_view(request):
+    employee = getattr(request.user, 'employee', None)
+    if employee is None:
+        return Response({'detail': 'Tài khoản chưa được gắn với nhân viên nào'}, status=status.HTTP_404_NOT_FOUND)
+
+    company_id = request.query_params.get('company_id')
+    qs = Task.objects.filter(assignments__employee=employee).distinct()
+    if company_id:
+        qs = qs.filter(project__company_id=company_id)
+
+    return Response(TaskFlatSerializer(qs.select_related('project').order_by('due_date'), many=True).data)
+
+
+@api_view(['GET'])
+def department_tasks_view(request):
+    employee = getattr(request.user, 'employee', None)
+    if employee is None:
+        return Response({'detail': 'Tài khoản chưa được gắn với nhân viên nào'}, status=status.HTTP_404_NOT_FOUND)
+
+    dept_ids = list(employee.employee_departments.values_list('department_id', flat=True))
+    if not dept_ids:
+        return Response([])
+
+    company_id = request.query_params.get('company_id')
+    qs = Task.objects.filter(
+        assignments__employee__employee_departments__department_id__in=dept_ids
+    ).distinct()
+    if company_id:
+        qs = qs.filter(project__company_id=company_id)
+
+    return Response(TaskFlatSerializer(qs.select_related('project').order_by('due_date'), many=True).data)
 
 
 @api_view(['POST'])

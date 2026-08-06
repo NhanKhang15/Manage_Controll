@@ -10,6 +10,7 @@ from events import views as event_views
 from meetings import views as meeting_views
 from integrations import views as integrations_views
 from assistant import views as assistant_views
+from proposals import views as proposal_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -26,10 +27,13 @@ urlpatterns = [
     path('api/projects/', project_views.create_project, name='create_project'),
     path('api/projects/<str:pk>/', project_views.delete_project, name='delete_project'),
     path('api/tasks/', task_views.create_task, name='create_task'),
+    path('api/tasks/mine/', task_views.my_tasks_view, name='my_tasks'),
+    path('api/tasks/department/', task_views.department_tasks_view, name='department_tasks'),
     path('api/tasks/reorder/', task_views.reorder_tasks, name='reorder_tasks'),
-    path('api/tasks/<str:pk>/', task_views.update_task, name='update_task'),
-    path('api/tasks/<str:pk>/', task_views.delete_task, name='delete_task'),
+    path('api/tasks/<str:pk>/', task_views.task_detail, name='task_detail'),
     path('api/task-assignments/', task_views.create_task_assignment, name='create_task_assignment'),
+    path('api/proposals/', proposal_views.proposals_view, name='proposals'),
+    path('api/proposals/<str:pk>/decide/', proposal_views.proposal_decide_view, name='proposal_decide'),
     path('api/employees/', employee_views.get_employees, name='get_employees'),
     path('api/departments/', company_views.get_departments, name='get_departments'),
 

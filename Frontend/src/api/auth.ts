@@ -4,6 +4,7 @@ export interface EmployeeCompanyRef {
   id: string;
   name: string;
   role_in_company: string | null;
+  can_approve_proposals: boolean;
 }
 
 export interface AuthEmployee {

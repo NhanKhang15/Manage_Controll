@@ -1,75 +1,126 @@
-import type { TaskMockItem } from "../../mocks/tasks";
 import { Chip } from "../../components/ui/Chip";
-import { Avatar } from "../../components/ui/Avatar";
-import { Panel } from "../../components/ui/Panel";
+import type { TaskItem } from "./types";
 
 export interface TaskTableProps {
-  tasks: TaskMockItem[];
-  onSelectTask?: (task: TaskMockItem) => void;
+  tasks: TaskItem[];
+  onSelectTask?: (task: TaskItem) => void;
+  onFlag?: (task: TaskItem) => void;
+  onProblem?: (task: TaskItem) => void;
+  onAutomate?: (task: TaskItem) => void;
 }
 
-const STATUS_VARIANT: Record<string, "default" | "todo" | "in_progress" | "done"> = {
-  todo: "todo",
-  in_progress: "in_progress",
-  review: "in_progress",
-  done: "done",
-};
+function AlertTag({ task }: { task: TaskItem }) {
+  if (task.completed) return <span className="alert-tag alert-ok">✓ Hoàn tất</span>;
+  if (task.overdueDays) return <span className="alert-tag alert-danger">🔴 Trễ hạn</span>;
+  return <span className="alert-tag alert-muted">—</span>;
+}
 
-const STATUS_LABEL: Record<string, string> = {
-  todo: "Cần làm",
-  in_progress: "Đang làm",
-  review: "Cần duyệt",
-  done: "Hoàn thành",
-};
+function DueCell({ task }: { task: TaskItem }) {
+  if (task.overdueDays) return <Chip label={`Trễ ${task.overdueDays} ngày`} variant="late" />;
+  if (task.dueDateLabel) return <span className="muted">{task.dueDateLabel}</span>;
+  return <span className="muted">—</span>;
+}
 
-export function TaskTable({ tasks, onSelectTask }: TaskTableProps) {
+export function TaskTable({ tasks, onSelectTask, onFlag, onProblem, onAutomate }: TaskTableProps) {
   if (tasks.length === 0) {
     return (
-      <Panel>
+      <div className="table-wrap">
         <div style={{ textAlign: "center", padding: "32px 0", color: "var(--muted)" }}>
           🎉 Không có công việc nào trong danh mục này.
         </div>
-      </Panel>
+      </div>
     );
   }
 
   return (
-    <Panel style={{ padding: 0, overflow: "hidden" }}>
-      <table className="task-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14 }}>
+    <div className="table-wrap">
+      <table className="task-table">
         <thead>
-          <tr style={{ background: "var(--bg)", borderBottom: "1px solid var(--line-2)", color: "var(--muted)", fontWeight: 600 }}>
-            <th style={{ padding: "12px 16px" }}>Mã</th>
-            <th style={{ padding: "12px 16px" }}>Tên công việc</th>
-            <th style={{ padding: "12px 16px" }}>Dự án</th>
-            <th style={{ padding: "12px 16px" }}>Người thực hiện</th>
-            <th style={{ padding: "12px 16px" }}>Hạn chót</th>
-            <th style={{ padding: "12px 16px" }}>Trạng thái</th>
+          <tr>
+            <th className="col-title">Việc</th>
+            <th className="col-proj">Dự án</th>
+            <th className="col-dept">Bộ phận</th>
+            <th className="col-alert">Cảnh báo</th>
+            <th className="col-prog">% hoàn thành</th>
+            <th className="col-assignee">Người phụ trách</th>
+            <th className="col-due">Hạn</th>
+            <th className="col-actions">Xử lý</th>
           </tr>
         </thead>
         <tbody>
           {tasks.map((task) => (
-            <tr
-              key={task.id}
-              onClick={() => onSelectTask?.(task)}
-              style={{ borderBottom: "1px solid var(--line-2)", cursor: "pointer", transition: "background 0.15s" }}
-            >
-              <td style={{ padding: "12px 16px", fontWeight: 600, color: "var(--brand)" }}>{task.code}</td>
-              <td style={{ padding: "12px 16px", fontWeight: 600 }}>{task.title}</td>
-              <td style={{ padding: "12px 16px", color: "var(--muted)" }}>{task.project}</td>
-              <td style={{ padding: "12px 16px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Avatar name={task.assignee.name} size={24} />
-                  <span>{task.assignee.name}</span>
+            <tr key={task.id} className="task-row" title="Xem chi tiết công việc" onClick={() => onSelectTask?.(task)}>
+              <td className="t-title">{task.title}</td>
+              <td className="t-proj">
+                {task.projectName ? (
+                  <span className="t-proj-inner">
+                    <span className="pdot" style={{ background: task.projectColor }} />
+                    <span>{task.projectName}</span>
+                  </span>
+                ) : (
+                  <span className="muted">—</span>
+                )}
+              </td>
+              <td className="t-dept">
+                {task.department ? <span className="dept-tag">{task.department}</span> : <span className="muted">—</span>}
+              </td>
+              <td className="t-alert">
+                <AlertTag task={task} />
+              </td>
+              <td className="t-prog">
+                <div className="tprog">
+                  <div className="tprog-bar">
+                    <i
+                      style={{
+                        width: task.completed ? "100%" : "0%",
+                        background: task.completed ? "#10B981" : "#F59E0B",
+                      }}
+                    />
+                  </div>
+                  <span className="tprog-num">{task.completed ? 100 : 0}%</span>
                 </div>
               </td>
-              <td style={{ padding: "12px 16px", color: "var(--muted)" }}>{task.dueDate}</td>
-              <td style={{ padding: "12px 16px" }}>
-                <Chip label={STATUS_LABEL[task.status] || task.status} variant={STATUS_VARIANT[task.status] || "default"} />
+              <td className="t-assignee-col">
+                {task.assigneeName ? (
+                  <div className="t-assignee">
+                    <span className="mini-ava" style={{ background: `${task.projectColor}22`, color: task.projectColor }}>
+                      {task.assigneeName.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span>{task.assigneeName}</span>
+                  </div>
+                ) : (
+                  <span className="muted">Chưa gán</span>
+                )}
+              </td>
+              <td className="t-due">
+                <DueCell task={task} />
+              </td>
+              <td className="t-actions" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="t-flagbtn" title="Gắn cờ để xử lý" onClick={() => onFlag?.(task)}>
+                  🚩
+                </button>
+                <button
+                  type="button"
+                  className="t-flagbtn prob"
+                  title="Đánh dấu đang có vấn đề"
+                  onClick={() => onProblem?.(task)}
+                >
+                  ⚠️
+                </button>
+                <button
+                  type="button"
+                  className="t-autobtn"
+                  title="Việc đơn giản/định kỳ — bấm để AI tạo luồng tự động"
+                  onClick={() => onAutomate?.(task)}
+                >
+                  🤖 Tự động hoá
+                </button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </Panel>
+    </div>
   );
 }
+

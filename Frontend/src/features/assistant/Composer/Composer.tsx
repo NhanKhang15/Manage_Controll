@@ -19,9 +19,11 @@ export interface ComposerProps {
   onAttachFile?: (file: File) => void;
   onSelectFeature?: (option: FeatureOption) => void;
   disabled?: boolean;
+  /** Cho phép gửi dù ô nhập trống — vd đã có file đính kèm sẵn sàng gửi. */
+  canSend?: boolean;
 }
 
-export function Composer({ value, onChange, onSend, onAttachFile, onSelectFeature, disabled }: ComposerProps) {
+export function Composer({ value, onChange, onSend, onAttachFile, onSelectFeature, disabled, canSend }: ComposerProps) {
   const [featureMenuOpen, setFeatureMenuOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const plusBtnRef = useRef<HTMLButtonElement>(null);
@@ -38,7 +40,7 @@ export function Composer({ value, onChange, onSend, onAttachFile, onSelectFeatur
         onEnter={onSend}
         disabled={disabled}
       />
-      <ComposerSendButton onClick={onSend} disabled={value.trim().length === 0 || !!disabled} />
+      <ComposerSendButton onClick={onSend} disabled={(value.trim().length === 0 && !canSend) || !!disabled} />
       <FeatureMenu
         isOpen={featureMenuOpen}
         onClose={() => setFeatureMenuOpen(false)}

@@ -11,12 +11,32 @@ MAX_TOOL_ITERATIONS = 5
 DEFAULT_TITLE = 'Cuộc trò chuyện mới'
 
 
-def send_message(conversation, employee, user_content):
-    Message.objects.create(conversation=conversation, role='user', content=user_content)
+def _to_llm_content(row):
+    """Chèn thông tin tệp đính kèm (nếu có) vào nội dung gửi cho LLM — AI chỉ
+    biết tên/link tệp, không đọc được nội dung bên trong tệp."""
+    text = row['content']
+    if row['attachment_name']:
+        note = f"\n\n[Tệp đính kèm: {row['attachment_name']}]"
+        if row['attachment_url']:
+            note += f" ({row['attachment_url']})"
+        text += note
+    return text
+
+
+def send_message(conversation, employee, user_content, attachment_url=None, attachment_name=None):
+    Message.objects.create(
+        conversation=conversation,
+        role='user',
+        content=user_content,
+        attachment_url=attachment_url,
+        attachment_name=attachment_name,
+    )
 
     llm_messages = [
-        {"role": m['role'], "content": m['content']}
-        for m in conversation.messages.order_by('created_at').values('role', 'content')
+        {"role": m['role'], "content": _to_llm_content(m)}
+        for m in conversation.messages.order_by('created_at').values(
+            'role', 'content', 'attachment_url', 'attachment_name'
+        )
     ]
     system_prompt = build_system_prompt(employee, conversation.company)
 

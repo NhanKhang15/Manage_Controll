@@ -2,6 +2,13 @@ import { apiFetch } from "./client";
 
 export type NodeType = "company" | "project" | "task";
 
+export interface TaskAssigneeRef {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  role: string;
+}
+
 export interface TreeNode {
   id: string;
   type: NodeType;
@@ -9,6 +16,9 @@ export interface TreeNode {
   status?: string;
   childCount?: string;
   completed?: boolean;
+  due_date?: string | null;
+  assignees?: TaskAssigneeRef[];
+  department?: string | null;
   children?: TreeNode[];
 }
 

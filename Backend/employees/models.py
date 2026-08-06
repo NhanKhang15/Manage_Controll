@@ -45,6 +45,9 @@ class EmployeeCompany(models.Model):
         db_column='company_id'
     )
     role_in_company = models.CharField(max_length=100, null=True, blank=True)
+    can_approve_proposals = models.BooleanField(
+        default=False, help_text='Được quyền Duyệt/Từ chối đề xuất chi phí trong công ty này'
+    )
     joined_at = models.DateField(default=date.today, null=True, blank=True)
     left_at = models.DateField(null=True, blank=True)
 

@@ -5,7 +5,7 @@
  */
 export interface ChipProps {
   label: string;
-  variant?: "default" | "todo" | "in_progress" | "done";
+  variant?: "default" | "todo" | "in_progress" | "done" | "late";
   color?: string;
 }
 
@@ -14,6 +14,7 @@ const VARIANT_STYLE: Record<NonNullable<ChipProps["variant"]>, { background: str
   todo: { background: "#E0E7FF", color: "#4338CA" },
   in_progress: { background: "#FEF3C7", color: "#B45309" },
   done: { background: "#D1FAE5", color: "#047857" },
+  late: { background: "#FEE2E2", color: "#B91C1C" },
 };
 
 export function Chip({ label, variant = "default", color }: ChipProps) {

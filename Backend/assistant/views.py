@@ -55,11 +55,13 @@ def conversation_messages_view(request, pk):
         return Response(MessageSerializer(conversation.messages.all(), many=True).data)
 
     content = (request.data.get('content') or '').strip()
-    if not content:
+    attachment_url = request.data.get('attachment_url') or None
+    attachment_name = request.data.get('attachment_name') or None
+    if not content and not attachment_name:
         return Response({'detail': 'Nội dung không được để trống'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        assistant_msg = send_message(conversation, employee, content)
+        assistant_msg = send_message(conversation, employee, content, attachment_url, attachment_name)
     except AIConfigError as exc:
         return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -15,6 +15,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
     def get_companies(self, obj):
         links = EmployeeCompany.objects.filter(employee=obj).select_related('company')
         return [
-            {'id': link.company_id, 'name': link.company.name, 'role_in_company': link.role_in_company}
+            {
+                'id': link.company_id,
+                'name': link.company.name,
+                'role_in_company': link.role_in_company,
+                'can_approve_proposals': link.can_approve_proposals,
+            }
             for link in links
         ]

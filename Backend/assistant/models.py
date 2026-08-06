@@ -30,6 +30,8 @@ class Message(models.Model):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages', db_column='conversation_id')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     content = models.TextField()
+    attachment_url = models.CharField(max_length=500, null=True, blank=True)
+    attachment_name = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

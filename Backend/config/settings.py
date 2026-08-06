@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'events',
     'meetings',
     'assistant',
+    'proposals',
 ]
 
 # Celery Configuration
