@@ -3,6 +3,8 @@ import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { MemberChipList } from "../../../components/ui/MemberChipList";
 import { CommentThread, type CommentMessage } from "../../../components/ui/CommentThread";
 import { Button } from "../../../components/ui/Button";
+import { TASK_STATUSES, EFFORT_LABEL, type TaskStatus } from "../types";
+import type { EmployeeListItem } from "../../../api/employees";
 
 export interface WorkspaceRevenueProps {
   value: number | null;
@@ -14,19 +16,26 @@ export interface WorkspaceThreadProps {
   onSend: (text: string) => void;
 }
 
-/**
- * WorkspaceDetailPanel
- * Panel chi tiết bên phải trình duyệt Thư mục — ráp .wk-d-sec lặp lại
- * (tiến độ, doanh thu, thành viên, 2 luồng trao đổi) cho node đang chọn
- * (dự án hoặc công việc).
- * CSS gốc tham chiếu: .wk-detail, .wk-d-head, .wk-d-ico, .wk-d-crumb, .wk-d-title,
- * .wk-d-sec, .wk-d-lbl, .wk-d-pct, .wk-d-notes, .proj-rev-row, .proj-stat-line
- */
+export interface WorkspaceTaskControls {
+  status: TaskStatus;
+  onChangeStatus: (status: TaskStatus) => void;
+  dueLabel: string | null;
+  overdueDays: number | null;
+  isMilestone: boolean;
+  onToggleMilestone: () => void;
+  effortPoints: number | null;
+  onChangeEffort: (points: number) => void;
+  employees: EmployeeListItem[];
+  picId: string | null;
+  onChangePic: (id: string | null) => void;
+  notes: string;
+  onSaveNotes: (text: string) => void;
+}
+
 export interface WorkspaceDetailPanelProps {
   icon: string;
   breadcrumb: string;
   title: string;
-  notes?: string;
   progress: number;
   progressColor: string;
   statLine: string;
@@ -34,6 +43,7 @@ export interface WorkspaceDetailPanelProps {
   members: string[];
   internalThread: WorkspaceThreadProps;
   sharedThread: WorkspaceThreadProps;
+  task?: WorkspaceTaskControls;
 }
 
 function formatRevenue(value: number): string {
@@ -44,7 +54,6 @@ export function WorkspaceDetailPanel({
   icon,
   breadcrumb,
   title,
-  notes,
   progress,
   progressColor,
   statLine,
@@ -52,8 +61,11 @@ export function WorkspaceDetailPanel({
   members,
   internalThread,
   sharedThread,
+  task,
 }: WorkspaceDetailPanelProps) {
   const [revenueDraft, setRevenueDraft] = useState(() => String(revenue?.value ?? 0));
+  const [notesDraft, setNotesDraft] = useState(task?.notes ?? "");
+  const [editingNotes, setEditingNotes] = useState(false);
 
   return (
     <div className="wk-detail">
@@ -65,15 +77,119 @@ export function WorkspaceDetailPanel({
         </div>
       </div>
 
-      {notes && <p className="wk-d-notes">{notes}</p>}
+      {task && (
+        <div className="wk-d-sec" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {TASK_STATUSES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`btn btn-sm${s === task.status ? " btn-primary" : " btn-ghost"}`}
+              onClick={() => task.onChangeStatus(s)}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="wk-d-sec">
         <div className="wk-d-lbl">
-          Tiến độ <b className="wk-d-pct">{progress}%</b>
+          Tiến độ {task ? "(tự tổng hợp từ việc con)" : ""} <b className="wk-d-pct">{progress}%</b>
         </div>
         <ProgressBar progress={progress} color={progressColor} size="big" />
         <div className="proj-stat-line">{statLine}</div>
       </div>
+
+      {task && (
+        <>
+          <div className="wk-d-sec">
+            <div className="wk-d-lbl">👤 Người phụ trách (PIC)</div>
+            <select
+              className="ai-model-sel"
+              style={{ width: "100%" }}
+              value={task.picId ?? ""}
+              onChange={(e) => task.onChangePic(e.target.value || null)}
+            >
+              <option value="">— Chưa gán —</option>
+              {task.employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.full_name}
+                  {e.primary_department_name ? ` · ${e.primary_department_name}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="wk-d-sec">
+            {task.dueLabel && (
+              <div className={task.overdueDays ? "muted" : "muted"} style={{ color: task.overdueDays ? "#EF4444" : undefined, fontSize: 13, marginBottom: 8 }}>
+                📅 Hết hạn: {task.dueLabel}
+                {task.overdueDays ? ` (trễ ${task.overdueDays} ngày)` : ""}
+              </div>
+            )}
+            <button type="button" className={`btn btn-sm${task.isMilestone ? " btn-primary" : " btn-ghost"}`} onClick={task.onToggleMilestone}>
+              🚩 {task.isMilestone ? "Đã đánh dấu cột mốc" : "Đánh dấu cột mốc"}
+            </button>
+          </div>
+
+          <div className="wk-d-sec">
+            <div className="wk-d-lbl">🔥 Độ khó (tính điểm nỗ lực cho Hiệu suất)</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {Object.entries(EFFORT_LABEL).map(([pts, label]) => (
+                <button
+                  key={pts}
+                  type="button"
+                  className={`btn btn-sm${task.effortPoints === Number(pts) ? " btn-primary" : " btn-ghost"}`}
+                  onClick={() => task.onChangeEffort(Number(pts))}
+                >
+                  {label} {pts}đ
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="wk-d-sec">
+            <div className="wk-d-lbl">📝 Ghi chú (**đậm**, *nghiêng*, - danh sách, #tag)</div>
+            {editingNotes ? (
+              <>
+                <textarea
+                  rows={4}
+                  style={{ width: "100%", font: "inherit" }}
+                  value={notesDraft}
+                  onChange={(e) => setNotesDraft(e.target.value)}
+                />
+                <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => {
+                      task.onSaveNotes(notesDraft);
+                      setEditingNotes(false);
+                    }}
+                  >
+                    Lưu
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingNotes(false)}>
+                    Huỷ
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="wk-d-notes"
+                style={{ textAlign: "left", width: "100%", cursor: "pointer", background: "none", border: "none", font: "inherit", color: "inherit" }}
+                onClick={() => {
+                  setNotesDraft(task.notes);
+                  setEditingNotes(true);
+                }}
+              >
+                {task.notes || "Chưa có ghi chú. Bấm để thêm…"}
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {revenue && (
         <div className="wk-d-sec">

@@ -9,6 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from employees.models import Employee, EmployeeCompany
 from employees.serializers import EmployeeSerializer
+from integrations.models import AuditLog
 
 
 @api_view(['POST'])
@@ -25,6 +26,19 @@ def login_view(request):
         return Response({'detail': 'Email hoặc mật khẩu không đúng'}, status=status.HTTP_401_UNAUTHORIZED)
 
     refresh = RefreshToken.for_user(user)
+
+    employee = getattr(user, 'employee', None)
+    if employee is not None:
+        company_link = employee.employee_companies.first()
+        AuditLog.objects.create(
+            table_name='employees',
+            record_id=str(employee.id),
+            action='login',
+            company_id=company_link.company_id if company_link else None,
+            description='đăng nhập',
+            changed_by=employee,
+        )
+
     return Response({
         'access': str(refresh.access_token),
         'refresh': str(refresh),

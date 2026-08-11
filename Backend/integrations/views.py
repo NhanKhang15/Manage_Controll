@@ -5,9 +5,42 @@ from rest_framework.response import Response
 from employees.models import EmployeeCompany
 from employees.services import get_employee_from_request
 from integrations.crypto import encrypt_api_key
-from integrations.models import CompanyAISetting
+from integrations.models import AuditLog, CompanyAISetting
 
 MANAGER_ROLES = ('Giám đốc', 'Quản lý')
+
+ACTION_LABEL = {'create': 'Tạo mới', 'update': 'Cập nhật', 'delete': 'Xoá', 'login': 'Đăng nhập'}
+
+
+@api_view(['GET'])
+def recent_activity_view(request):
+    current_emp = get_employee_from_request(request)
+    if current_emp is None:
+        return Response({'detail': 'Chưa xác thực'}, status=status.HTTP_403_FORBIDDEN)
+
+    company_id = request.query_params.get('company_id')
+    try:
+        limit = min(int(request.query_params.get('limit', 20)), 100)
+    except ValueError:
+        limit = 20
+
+    qs = AuditLog.objects.select_related('changed_by').order_by('-created_at')
+    if company_id:
+        qs = qs.filter(company_id=company_id)
+
+    data = [
+        {
+            'id': a.id,
+            'action': a.action,
+            'description': a.description or f'{ACTION_LABEL.get(a.action, a.action)} {a.table_name}',
+            'actor_id': a.changed_by_id,
+            'actor_name': a.changed_by.full_name if a.changed_by else 'Hệ thống',
+            'actor_avatar_url': a.changed_by.avatar_url if a.changed_by else None,
+            'created_at': a.created_at,
+        }
+        for a in qs[:limit]
+    ]
+    return Response(data)
 
 
 @api_view(['GET', 'PUT'])

@@ -3,39 +3,18 @@ import { DriveConnectBanner } from "./DriveConnectBanner";
 import { WorkspaceColumn } from "./WorkspaceColumn";
 import { WorkspaceItem } from "./WorkspaceItem";
 import { WorkspaceDetailPanel } from "./WorkspaceDetailPanel";
-import type { CommentMessage } from "../../../components/ui/CommentThread";
 import { useToast } from "../../../components/ui/Toast";
+import type { CommentMessage } from "../../../components/ui/CommentThread";
 import { currentUser } from "../../../mocks/user";
-import type { ProjectMockItem } from "../../../mocks/projects";
-import type { ProjectTaskItem } from "../../../mocks/projectTasks";
+import type { EmployeeListItem } from "../../../api/employees";
+import type { UpdateTaskData } from "../../../api/tasks";
+import { STATUS_COLOR, findTaskById, projectColor, type ProjectNode, type ProjectTaskNode, type TaskStatus } from "../types";
 
-const LEGAL_ENTITY_NAME = "Vela AI — Pháp nhân";
-
-const STATUS_COLOR: Record<ProjectTaskItem["status"], string> = {
-  todo: "#AEB6C4",
-  in_progress: "#F59E0B",
-  review: "#8B5CF6",
-  done: "#10B981",
-};
-
-const STATUS_LABEL: Record<ProjectTaskItem["status"], string> = {
-  todo: "Cần làm",
-  in_progress: "Đang làm",
-  review: "Cần duyệt",
-  done: "Hoàn thành",
-};
-
-const DOT_PALETTE = ["#4F6EF7", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#0EA5E9"];
-
-function colorForKey(key: string): string {
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
-  return DOT_PALETTE[hash % DOT_PALETTE.length];
-}
+const LEGAL_ENTITY_NAME = "Pháp nhân";
 
 function formatDueShort(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${d}-${m}`;
+  const [y, m, d] = iso.split("-");
+  return `${d}-${m}-${y}`;
 }
 
 function makeMessage(text: string): CommentMessage {
@@ -44,31 +23,36 @@ function makeMessage(text: string): CommentMessage {
 
 /**
  * WorkspaceBrowser
- * Trình duyệt dự án dạng Miller-column (Pháp nhân › Dự án › Công việc) +
- * panel chi tiết bên phải — view "🗂️ Thư mục".
+ * Trình duyệt dự án dạng Miller-column (Pháp nhân › Dự án › Công việc › việc
+ * con...) + panel chi tiết bên phải — view "🗂️ Thư mục". Dữ liệu thật (không
+ * còn mock), đệ quy sâu tuỳ ý theo Task.parent.
  * CSS gốc tham chiếu: .drive-bar, .workspace, .wk-cols
  */
 export interface WorkspaceBrowserProps {
-  projects: ProjectMockItem[];
-  tasks: ProjectTaskItem[];
+  companyName: string;
+  projects: ProjectNode[];
+  employees: EmployeeListItem[];
+  onCreateProject: (name: string) => void;
+  onCreateTask: (projectId: string, parentId: string | null, name: string) => void;
+  onUpdateTask: (taskId: string, patch: UpdateTaskData) => void;
 }
 
-export function WorkspaceBrowser({ projects, tasks }: WorkspaceBrowserProps) {
+export function WorkspaceBrowser({ companyName, projects, employees, onCreateProject, onCreateTask, onUpdateTask }: WorkspaceBrowserProps) {
   const { showToast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id ?? "");
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [revenues, setRevenues] = useState<Record<string, number>>({});
+  const [taskPath, setTaskPath] = useState<string[]>([]);
   const [internalMessages, setInternalMessages] = useState<Record<string, CommentMessage[]>>({});
   const [sharedMessages, setSharedMessages] = useState<Record<string, CommentMessage[]>>({});
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
-  const projectTasks = tasks.filter((t) => t.projectId === selectedProjectId);
-  const topLevelTasks = projectTasks.filter((t) => !t.parentId);
-  const selectedTask = selectedTaskId ? projectTasks.find((t) => t.id === selectedTaskId) ?? null : null;
 
   function selectProject(id: string) {
     setSelectedProjectId(id);
-    setSelectedTaskId(null);
+    setTaskPath([]);
+  }
+
+  function selectTaskAt(depth: number, taskId: string) {
+    setTaskPath((prev) => [...prev.slice(0, depth), taskId]);
   }
 
   function sendInternal(nodeKey: string, text: string) {
@@ -79,42 +63,82 @@ export function WorkspaceBrowser({ projects, tasks }: WorkspaceBrowserProps) {
     setSharedMessages((prev) => ({ ...prev, [nodeKey]: [...(prev[nodeKey] ?? []), makeMessage(text)] }));
   }
 
+  function handleAddTask(projectId: string, parentId: string | null) {
+    const name = window.prompt(parentId ? "Tên việc con mới:" : "Tên công việc mới:");
+    if (name && name.trim()) onCreateTask(projectId, parentId, name.trim());
+  }
+
+  // Dựng các cột Miller theo đường đã chọn — mỗi cột là children của node được chọn ở cột trước.
+  const columns: { tasks: ProjectTaskNode[]; parentTask: ProjectTaskNode | null }[] = [];
+  if (selectedProject) {
+    let currentTasks = selectedProject.tasks;
+    let parentTask: ProjectTaskNode | null = null;
+    for (let depth = 0; ; depth++) {
+      columns.push({ tasks: currentTasks, parentTask });
+      const selId = taskPath[depth];
+      if (!selId) break;
+      const selTask = currentTasks.find((t) => t.id === selId);
+      if (!selTask || selTask.children.length === 0) break;
+      parentTask = selTask;
+      currentTasks = selTask.children;
+    }
+  }
+
+  const deepestTaskId = taskPath[taskPath.length - 1];
+  const deepestTask = selectedProject && deepestTaskId ? findTaskById(selectedProject.tasks, deepestTaskId) : null;
+
   let detail = null;
-  if (selectedTask) {
-    const hasChildren = projectTasks.some((t) => t.parentId === selectedTask.id);
-    const nodeKey = `task-${selectedTask.id}`;
+  if (deepestTask) {
+    const nodeKey = `task-${deepestTask.id}`;
+    const overdue = deepestTask.dueDate && !deepestTask.completed && deepestTask.dueDate < new Date().toISOString().slice(0, 10)
+      ? Math.round((Date.now() - new Date(deepestTask.dueDate).getTime()) / 86400000)
+      : null;
     detail = (
       <WorkspaceDetailPanel
         key={nodeKey}
-        icon={hasChildren ? "📁" : "📄"}
-        breadcrumb={`${LEGAL_ENTITY_NAME} › ${selectedProject?.name ?? ""}`}
-        title={selectedTask.title}
-        progress={selectedTask.progress}
-        progressColor={STATUS_COLOR[selectedTask.status]}
-        statLine={`${STATUS_LABEL[selectedTask.status]} · Hạn ${formatDueShort(selectedTask.end)}`}
-        members={[selectedTask.assignee]}
+        icon={deepestTask.hasChildren ? "📁" : "📄"}
+        breadcrumb={`${LEGAL_ENTITY_NAME} › ${companyName} › ${selectedProject?.name ?? ""}`}
+        title={deepestTask.title}
+        progress={deepestTask.progressPercent}
+        progressColor={STATUS_COLOR[deepestTask.status]}
+        statLine={`${deepestTask.status} · ${deepestTask.hasChildren ? `${deepestTask.children.length} việc con` : "Không có việc con"}`}
+        members={deepestTask.assigneeNames}
         internalThread={{ messages: internalMessages[nodeKey] ?? [], onSend: (text) => sendInternal(nodeKey, text) }}
         sharedThread={{ messages: sharedMessages[nodeKey] ?? [], onSend: (text) => sendShared(nodeKey, text) }}
+        task={{
+          status: deepestTask.status,
+          onChangeStatus: (s: TaskStatus) => onUpdateTask(deepestTask.id, { status: s, is_completed: s === "Hoàn thành" }),
+          dueLabel: deepestTask.dueDate ? formatDueShort(deepestTask.dueDate) : null,
+          overdueDays: overdue,
+          isMilestone: deepestTask.isMilestone,
+          onToggleMilestone: () => onUpdateTask(deepestTask.id, { is_milestone: !deepestTask.isMilestone }),
+          effortPoints: deepestTask.effortPoints,
+          onChangeEffort: (points) => onUpdateTask(deepestTask.id, { effort_points: points }),
+          employees,
+          picId: deepestTask.picId,
+          onChangePic: (id) => onUpdateTask(deepestTask.id, { pic_id: id }),
+          notes: deepestTask.notes,
+          onSaveNotes: (text) => onUpdateTask(deepestTask.id, { notes: text }),
+        }}
       />
     );
   } else if (selectedProject) {
     const nodeKey = `project-${selectedProject.id}`;
-    const done = projectTasks.filter((t) => t.status === "done").length;
-    const inProgress = projectTasks.filter((t) => t.status === "in_progress" || t.status === "review").length;
-    const todo = projectTasks.filter((t) => t.status === "todo").length;
-    const members = Array.from(new Set(projectTasks.map((t) => t.assignee)));
+    const flatTasks = columns[0]?.tasks ?? [];
+    const doneCount = flatTasks.filter((t) => t.status === "Hoàn thành").length;
+    const inProgress = flatTasks.filter((t) => t.status === "Đang làm").length;
+    const todo = flatTasks.filter((t) => t.status === "Cần làm" || t.status === "Ý tưởng").length;
+    const members = Array.from(new Set(flatTasks.flatMap((t) => t.assigneeNames)));
 
     detail = (
       <WorkspaceDetailPanel
         key={nodeKey}
         icon="📁"
-        breadcrumb={LEGAL_ENTITY_NAME}
+        breadcrumb={`${LEGAL_ENTITY_NAME} › ${companyName}`}
         title={selectedProject.name}
-        notes={selectedProject.description}
-        progress={selectedProject.progress}
-        progressColor={colorForKey(selectedProject.name)}
-        statLine={`${done}/${projectTasks.length} xong · ${inProgress} đang làm · ${todo} cần làm`}
-        revenue={{ value: revenues[selectedProject.id] ?? null, onSave: (value) => setRevenues((prev) => ({ ...prev, [selectedProject.id]: value })) }}
+        progress={selectedProject.progressPercent}
+        progressColor={projectColor(selectedProject.name)}
+        statLine={`${doneCount}/${flatTasks.length} xong · ${inProgress} đang làm · ${todo} cần làm`}
         members={members}
         internalThread={{ messages: internalMessages[nodeKey] ?? [], onSend: (text) => sendInternal(nodeKey, text) }}
         sharedThread={{ messages: sharedMessages[nodeKey] ?? [], onSend: (text) => sendShared(nodeKey, text) }}
@@ -128,17 +152,25 @@ export function WorkspaceBrowser({ projects, tasks }: WorkspaceBrowserProps) {
       <div className="workspace">
         <div className="wk-cols">
           <WorkspaceColumn title="Pháp nhân">
-            <WorkspaceItem icon="🏢" title={LEGAL_ENTITY_NAME} active showChevron />
+            <WorkspaceItem icon="🏢" title={companyName} active showChevron />
           </WorkspaceColumn>
 
-          <WorkspaceColumn title={LEGAL_ENTITY_NAME} onAdd={() => showToast("Đang mở form tạo dự án mới...", "default")} addTitle="Tạo dự án mới">
+          <WorkspaceColumn
+            title={companyName}
+            onAdd={() => {
+              const name = window.prompt("Tên dự án mới:");
+              if (name && name.trim()) onCreateProject(name.trim());
+            }}
+            addTitle="Tạo dự án mới"
+          >
+            {projects.length === 0 && <div className="mini-empty">Chưa có dự án nào.</div>}
             {projects.map((p) => (
               <WorkspaceItem
                 key={p.id}
                 icon="📁"
-                dotColor={colorForKey(p.name)}
+                dotColor={projectColor(p.name)}
                 title={p.name}
-                pct={`${p.progress}%`}
+                pct={`${p.progressPercent}%`}
                 active={p.id === selectedProjectId}
                 showChevron
                 onClick={() => selectProject(p.id)}
@@ -146,27 +178,32 @@ export function WorkspaceBrowser({ projects, tasks }: WorkspaceBrowserProps) {
             ))}
           </WorkspaceColumn>
 
-          {selectedProject && (
-            <WorkspaceColumn title={selectedProject.name} onAdd={() => showToast("Đang mở form thêm công việc...", "default")} addTitle="Thêm công việc">
-              {topLevelTasks.length === 0 && <div className="mini-empty">Chưa có công việc nào.</div>}
-              {topLevelTasks.map((t) => {
-                const hasChildren = projectTasks.some((c) => c.parentId === t.id);
-                const today = new Date().toISOString().slice(0, 10);
-                return (
-                  <WorkspaceItem
-                    key={t.id}
-                    icon={hasChildren ? "📁" : "📄"}
-                    dotColor={STATUS_COLOR[t.status]}
-                    title={t.title}
-                    due={{ label: formatDueShort(t.end), danger: t.status !== "done" && t.end < today }}
-                    avatarName={t.assignee}
-                    active={t.id === selectedTaskId}
-                    onClick={() => setSelectedTaskId(t.id)}
-                  />
-                );
-              })}
-            </WorkspaceColumn>
-          )}
+          {selectedProject &&
+            columns.map((col, depth) => (
+              <WorkspaceColumn
+                key={col.parentTask?.id ?? `top-${selectedProject.id}`}
+                title={col.parentTask?.title ?? selectedProject.name}
+                onAdd={() => handleAddTask(selectedProject.id, col.parentTask?.id ?? null)}
+                addTitle="Thêm công việc"
+              >
+                {col.tasks.length === 0 && <div className="mini-empty">Chưa có công việc nào.</div>}
+                {col.tasks.map((t) => {
+                  const today = new Date().toISOString().slice(0, 10);
+                  return (
+                    <WorkspaceItem
+                      key={t.id}
+                      icon={t.hasChildren ? "📁" : "📄"}
+                      dotColor={STATUS_COLOR[t.status]}
+                      title={t.title}
+                      due={t.dueDate ? { label: formatDueShort(t.dueDate), danger: !t.completed && t.dueDate < today } : undefined}
+                      avatarName={t.picName ?? t.assigneeNames[0]}
+                      active={taskPath[depth] === t.id}
+                      onClick={() => selectTaskAt(depth, t.id)}
+                    />
+                  );
+                })}
+              </WorkspaceColumn>
+            ))}
 
           {detail}
         </div>

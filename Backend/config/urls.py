@@ -58,6 +58,7 @@ urlpatterns = [
 
     # AI settings (module AI dùng chung)
     path('api/settings/ai/', integrations_views.ai_settings_view, name='ai_settings'),
+    path('api/activity/', integrations_views.recent_activity_view, name='recent_activity'),
 
     # Trợ lý AI (chatbot + tool-calling)
     path('api/assistant/conversations/', assistant_views.conversations_view, name='assistant_conversations'),

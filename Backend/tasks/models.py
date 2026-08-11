@@ -5,6 +5,19 @@ from employees.models import Employee
 
 
 class Task(models.Model):
+    STATUS_CHOICES = (
+        ('Ý tưởng', 'Ý tưởng'),
+        ('Cần làm', 'Cần làm'),
+        ('Đang làm', 'Đang làm'),
+        ('Hoàn thành', 'Hoàn thành'),
+    )
+    EFFORT_CHOICES = (
+        (1, 'Nhỏ'),
+        (3, 'Vừa'),
+        (5, 'Lớn'),
+        (8, 'Rất lớn'),
+    )
+
     id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(
         Project,
@@ -12,11 +25,32 @@ class Task(models.Model):
         related_name='tasks',
         db_column='project_id'
     )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+        db_column='parent_id'
+    )
     name = models.CharField(max_length=500)
-    status = models.CharField(max_length=50, default='Cần làm')
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Cần làm')
     is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
     due_date = models.DateField(null=True, blank=True)
     order_index = models.IntegerField(default=0)
+    pic = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pic_tasks',
+        db_column='pic_id',
+        help_text='Người phụ trách chính (khác task_assignments — có thể nhiều người tham gia)'
+    )
+    is_milestone = models.BooleanField(default=False)
+    effort_points = models.IntegerField(null=True, blank=True, choices=EFFORT_CHOICES)
+    notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

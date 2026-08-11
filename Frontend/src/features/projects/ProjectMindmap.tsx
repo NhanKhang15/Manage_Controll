@@ -1,90 +1,197 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ReactFlow, Background, Controls, type Node, type Edge } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { ProjectMockItem } from "../../mocks/projects";
-import type { ProjectTaskItem } from "../../mocks/projectTasks";
+import { MindmapNode } from "./MindmapNode";
+import type { ProjectNode, ProjectTaskNode } from "./types";
+import { colorFromName } from "../../utils/color";
+import { useAuth } from "../../auth/AuthContext";
+import { getUserId } from "../../auth/tokenStorage";
 
-const STATUS_COLOR: Record<ProjectTaskItem["status"], string> = {
-  todo: "#AEB6C4",
-  in_progress: "#F59E0B",
-  review: "#8B5CF6",
-  done: "#10B981",
-};
+const nodeTypes = { mm: MindmapNode };
+const ROOT_COLOR = "#64748B";
+const LEVEL_W = 240;
+const ROW_H = 46;
 
-const NODE_STYLE = { background: "transparent", border: "none", width: 200, padding: 0 };
+type MMKind = "root" | "project" | "task";
 
-function buildLayout(project: ProjectMockItem, tasks: ProjectTaskItem[]) {
-  const topLevel = tasks.filter((t) => !t.parentId);
-  const nodes: Node[] = [];
-  const edges: Edge[] = [];
-  const colWidth = 220;
+interface MMNode {
+  id: string;
+  title: string;
+  kind: MMKind;
+  children: MMNode[];
+  task?: ProjectTaskNode;
+}
 
-  nodes.push({
+function taskToMM(t: ProjectTaskNode): MMNode {
+  return { id: t.id, title: t.title, kind: "task", children: t.children.map(taskToMM), task: t };
+}
+
+function buildTree(companyName: string, projects: ProjectNode[]): MMNode {
+  return {
     id: "root",
-    position: { x: (topLevel.length * colWidth) / 2 - 100, y: 0 },
-    data: { label: <div className="mm-node-card root">{project.name}</div> },
-    style: NODE_STYLE,
-  });
+    title: companyName,
+    kind: "root",
+    children: projects.map((p) => ({ id: p.id, title: p.name, kind: "project", children: p.tasks.map(taskToMM) })),
+  };
+}
 
-  topLevel.forEach((task, i) => {
-    const x = i * colWidth;
-    nodes.push({
-      id: task.id,
-      position: { x, y: 140 },
-      data: {
-        label: (
-          <div className="mm-node-card" style={{ borderTop: `3px solid ${STATUS_COLOR[task.status]}` }}>
-            {task.title}
-          </div>
-        ),
-      },
-      style: NODE_STYLE,
-    });
-    edges.push({ id: `e-root-${task.id}`, source: "root", target: task.id });
+/** Helper function to read collapsed node IDs array from localStorage for a given account key */
+function loadCollapsedForUser(key: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed);
+      }
+    }
+  } catch {
+    // Ignore JSON error
+  }
+  return new Set();
+}
 
-    const children = tasks.filter((t) => t.parentId === task.id);
-    children.forEach((child, j) => {
-      nodes.push({
-        id: child.id,
-        position: { x: x - 20 + j * 40, y: 280 },
-        data: {
-          label: (
-            <div
-              className="mm-node-card"
-              style={{ borderTop: `3px solid ${STATUS_COLOR[child.status]}`, fontSize: 12, minWidth: 120 }}
-            >
-              {child.title}
-            </div>
-          ),
-        },
-        style: { ...NODE_STYLE, width: 180 },
-      });
-      edges.push({ id: `e-${task.id}-${child.id}`, source: task.id, target: child.id });
-    });
-  });
-
-  return { nodes, edges };
+/** Helper function to save collapsed node IDs array to localStorage */
+function saveCollapsedForUser(key: string, set: Set<string>) {
+  try {
+    localStorage.setItem(key, JSON.stringify(Array.from(set)));
+  } catch {
+    // Ignore quota error
+  }
 }
 
 /**
  * ProjectMindmap
- * Bọc @xyflow/react (React Flow) — sơ đồ dự án → công việc → subtask. Layout
- * đơn giản tự tính (không cần thư viện auto-layout riêng vì dữ liệu nhỏ).
- * CSS: .vela-mindmap, .mm-node-card
+ * Cây toàn công ty: Pháp nhân (root) → Dự án → Công việc → việc con... —
+ * tự tính layout kiểu tidy-tree (đệ quy theo chiều sâu bất kỳ), mỗi nhánh
+ * thu/mở độc lập. Bọc @xyflow/react (React Flow) để có sẵn kéo/zoom.
+ * Tự động lưu trạng thái đóng/mở từng nhánh cây theo TỪNG TÀI KHOẢN (Per-User Account State).
+ * CSS: .vela-mindmap-container, .mm-toolbar, .vela-mindmap, .mm-pill
  */
 export interface ProjectMindmapProps {
-  project: ProjectMockItem;
-  tasks: ProjectTaskItem[];
+  companyName: string;
+  projects: ProjectNode[];
+  onSelectTask?: (task: ProjectTaskNode) => void;
 }
 
-export function ProjectMindmap({ project, tasks }: ProjectMindmapProps) {
-  const { nodes, edges } = buildLayout(project, tasks);
+export function ProjectMindmap({ companyName, projects, onSelectTask }: ProjectMindmapProps) {
+  const { employee } = useAuth();
+  const userId = employee?.id || getUserId() || "guest";
+  const userDisplayName = employee?.full_name || "Tài khoản";
+  const storageKey = `vela_mindmap_collapsed_${userId}`;
+
+  // Initialize state from local storage for current user
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsedForUser(storageKey));
+
+  // Reload state whenever logged in user changes
+  useEffect(() => {
+    setCollapsed(loadCollapsedForUser(storageKey));
+  }, [storageKey]);
+
+  // Toggle single node branch & persist to local storage per account
+  const toggle = useCallback(
+    (id: string) => {
+      setCollapsed((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        saveCollapsedForUser(storageKey, next);
+        return next;
+      });
+    },
+    [storageKey]
+  );
+
+  // Expand all branches
+  const expandAll = useCallback(() => {
+    const emptySet = new Set<string>();
+    setCollapsed(emptySet);
+    saveCollapsedForUser(storageKey, emptySet);
+  }, [storageKey]);
+
+  // Collapse all branches
+  const collapseAll = useCallback(() => {
+    const allIds: string[] = [];
+    function collect(node: MMNode) {
+      allIds.push(node.id);
+      node.children.forEach(collect);
+    }
+    const tree = buildTree(companyName, projects);
+    collect(tree);
+    const nextSet = new Set(allIds);
+    setCollapsed(nextSet);
+    saveCollapsedForUser(storageKey, nextSet);
+  }, [companyName, projects, storageKey]);
+
+  const { nodes, edges } = useMemo(() => {
+    const root = buildTree(companyName, projects);
+    const nodesOut: Node[] = [];
+    const edgesOut: Edge[] = [];
+    let cursor = 0;
+
+    function place(node: MMNode, depth: number, parentId: string | null): number {
+      const hasChildren = node.children.length > 0;
+      const isCollapsed = collapsed.has(node.id);
+      let y: number;
+      if (!hasChildren || isCollapsed) {
+        y = cursor;
+        cursor += ROW_H;
+      } else {
+        const childYs = node.children.map((c) => place(c, depth + 1, node.id));
+        y = (childYs[0] + childYs[childYs.length - 1]) / 2;
+      }
+
+      const color = node.kind === "root" ? ROOT_COLOR : colorFromName(node.title);
+      nodesOut.push({
+        id: node.id,
+        type: "mm",
+        position: { x: depth * LEVEL_W, y },
+        data: {
+          label: node.title,
+          color,
+          isRoot: node.kind === "root",
+          childCount: node.children.length,
+          collapsed: isCollapsed,
+          hasChildren,
+          onToggle: () => toggle(node.id),
+          onSelect: hasChildren ? () => toggle(node.id) : () => node.task && onSelectTask?.(node.task),
+        },
+      });
+      if (parentId) {
+        edgesOut.push({ id: `e-${parentId}-${node.id}`, source: parentId, target: node.id, style: { stroke: color } });
+      }
+      return y;
+    }
+
+    place(root, 0, null);
+    return { nodes: nodesOut, edges: edgesOut };
+  }, [companyName, projects, collapsed, toggle, onSelectTask]);
 
   return (
-    <div className="vela-mindmap">
-      <ReactFlow nodes={nodes} edges={edges} fitView>
-        <Background />
-        <Controls />
-      </ReactFlow>
+    <div className="vela-mindmap-container">
+      <div className="mm-toolbar">
+        <div className="mm-info">
+          <span>
+            🧠 <strong>Mindmap:</strong> Trạng thái thu/mở các nhánh được tự động lưu theo tài khoản <strong>{userDisplayName}</strong>.
+          </span>
+        </div>
+
+        <div className="mm-actions">
+          <button type="button" className="mm-action-btn" onClick={expandAll}>
+            ▾ Mở tất cả
+          </button>
+          <button type="button" className="mm-action-btn" onClick={collapseAll}>
+            ▸ Thu gọn tất cả
+          </button>
+        </div>
+      </div>
+
+      <div className="vela-mindmap">
+        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView>
+          <Background />
+          <Controls />
+        </ReactFlow>
+      </div>
     </div>
   );
 }

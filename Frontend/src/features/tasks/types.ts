@@ -1,13 +1,6 @@
 import type { TaskAssigneeRef, TreeNode } from "../../api/companies";
 import type { FlatTask } from "../../api/tasks";
-
-const PALETTE = ["#4F6EF7", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#0EA5E9", "#0D9488"];
-
-function colorFromName(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return PALETTE[hash % PALETTE.length];
-}
+import { colorFromName } from "../../utils/color";
 
 export interface TaskItem {
   id: string;
@@ -16,6 +9,7 @@ export interface TaskItem {
   projectName: string | null;
   projectColor: string;
   completed: boolean;
+  completedAtIso: string | null;
   dueDateIso: string | null;
   dueDateLabel: string | null;
   overdueDays: number | null;
@@ -26,6 +20,7 @@ export interface TaskItem {
 export interface ProjectOption {
   id: string;
   name: string;
+  status?: string;
 }
 
 function daysOverdue(dueDateIso: string | null): number | null {
@@ -57,6 +52,7 @@ export function flattenTasks(nodes: TreeNode[], project: ProjectOption | null = 
         projectName: project?.name ?? null,
         projectColor: project ? colorFromName(project.name) : "#8A93A6",
         completed: !!node.completed,
+        completedAtIso: node.completed_at ?? null,
         dueDateIso: node.due_date ?? null,
         dueDateLabel: node.due_date ? new Date(node.due_date).toLocaleDateString("vi-VN") : null,
         overdueDays: daysOverdue(node.due_date ?? null),
@@ -80,6 +76,7 @@ export function fromFlatTask(t: FlatTask): TaskItem {
     projectName: t.project.name,
     projectColor: colorFromName(t.project.name),
     completed: t.completed,
+    completedAtIso: t.completed_at,
     dueDateIso: t.due_date,
     dueDateLabel: t.due_date ? new Date(t.due_date).toLocaleDateString("vi-VN") : null,
     overdueDays: daysOverdue(t.due_date),
@@ -93,7 +90,7 @@ export function flattenProjects(nodes: TreeNode[]): ProjectOption[] {
   const result: ProjectOption[] = [];
   for (const node of nodes) {
     if (node.type === "project") {
-      result.push({ id: node.id, name: node.name });
+      result.push({ id: node.id, name: node.name, status: node.status });
     } else if (node.children) {
       result.push(...flattenProjects(node.children));
     }

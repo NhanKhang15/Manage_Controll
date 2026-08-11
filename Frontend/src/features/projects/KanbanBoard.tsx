@@ -1,44 +1,65 @@
+import { useState } from "react";
 import { Avatar } from "../../components/ui/Avatar";
-import type { ProjectTaskItem } from "../../mocks/projectTasks";
-
-const COLUMNS: { status: ProjectTaskItem["status"]; label: string }[] = [
-  { status: "todo", label: "Cần làm" },
-  { status: "in_progress", label: "Đang làm" },
-  { status: "review", label: "Cần duyệt" },
-  { status: "done", label: "Hoàn thành" },
-];
+import { TASK_STATUSES, type ProjectTaskNode, type TaskStatus } from "./types";
 
 /**
  * KanbanBoard
- * Bảng Kanban theo trạng thái công việc trong 1 dự án. Không dùng thư viện
- * ngoài (chỉ Gantt/Mindmap/Calendar mới bắt buộc dùng thư viện chỉ định).
- * CSS: .kanban-board, .kanban-col, .kanban-card (mới, không có trong HTML gốc)
+ * Kéo thẻ giữa cột để đổi trạng thái thật (native HTML5 drag & drop) — %
+ * dự án tự cập nhật (BE tính lại progress_percent sau khi đổi status).
+ * CSS: .kanban-board, .kanban-col, .kanban-card
  */
 export interface KanbanBoardProps {
-  tasks: ProjectTaskItem[];
-  onSelectTask?: (task: ProjectTaskItem) => void;
+  tasks: ProjectTaskNode[];
+  onSelectTask?: (task: ProjectTaskNode) => void;
+  onChangeStatus: (taskId: string, status: TaskStatus) => void;
 }
 
-export function KanbanBoard({ tasks, onSelectTask }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onSelectTask, onChangeStatus }: KanbanBoardProps) {
+  const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
+
   return (
     <div className="kanban-board">
-      {COLUMNS.map((col) => {
-        const colTasks = tasks.filter((t) => t.status === col.status);
+      {TASK_STATUSES.map((col) => {
+        const colTasks = tasks.filter((t) => t.status === col);
         return (
-          <div key={col.status} className="kanban-col">
+          <div
+            key={col}
+            className="kanban-col"
+            style={dragOverCol === col ? { background: "var(--brand-soft)", borderRadius: 12 } : undefined}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOverCol(col);
+            }}
+            onDragLeave={() => setDragOverCol((c) => (c === col ? null : c))}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverCol(null);
+              const taskId = e.dataTransfer.getData("text/task-id");
+              if (taskId) onChangeStatus(taskId, col);
+            }}
+          >
             <div className="kanban-col-head">
-              {col.label} <span className="kanban-col-count">{colTasks.length}</span>
+              {col} <span className="kanban-col-count">{colTasks.length}</span>
             </div>
             {colTasks.map((task) => (
-              <div key={task.id} className="kanban-card" onClick={() => onSelectTask?.(task)}>
-                <div className="kanban-card-title">{task.title}</div>
+              <div
+                key={task.id}
+                className="kanban-card"
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData("text/task-id", task.id)}
+                onClick={() => onSelectTask?.(task)}
+              >
+                <div className="kanban-card-title">
+                  {task.isMilestone && "🚩 "}
+                  {task.title}
+                </div>
                 <div className="a-progress" style={{ width: "100%", marginTop: 8 }}>
-                  <span style={{ width: `${task.progress}%`, background: "var(--brand)" }} />
+                  <span style={{ width: `${task.progressPercent}%`, background: "var(--brand)" }} />
                 </div>
                 <div className="kanban-card-foot">
-                  <Avatar name={task.assignee} size={22} />
+                  {(task.picName ?? task.assigneeNames[0]) && <Avatar name={task.picName ?? task.assigneeNames[0]} size={22} />}
                   <span className="muted" style={{ fontSize: 12 }}>
-                    {task.end}
+                    {task.dueDate ?? ""}
                   </span>
                 </div>
               </div>

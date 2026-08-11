@@ -41,12 +41,25 @@ class AuditLog(models.Model):
         ('create', 'Create'),
         ('update', 'Update'),
         ('delete', 'Delete'),
+        ('login', 'Login'),
     )
 
     id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='audit_logs',
+        db_column='company_id',
+    )
     table_name = models.CharField(max_length=100)
     record_id = models.CharField(max_length=36)
     action = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    description = models.CharField(
+        max_length=255, null=True, blank=True,
+        help_text='Câu mô tả tiếng Việt sẵn để hiển thị (vd "tạo việc: Giao cho @lan"), tạo sẵn lúc ghi log để khỏi phải tra lại record gốc (có thể đã bị xoá).',
+    )
     changed_by = models.ForeignKey(
         Employee,
         on_delete=models.SET_NULL,

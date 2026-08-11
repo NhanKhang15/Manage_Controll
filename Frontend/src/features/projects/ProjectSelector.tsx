@@ -1,12 +1,11 @@
-import type { ProjectMockItem } from "../../mocks/projects";
+import type { ProjectNode } from "./types";
 
 /**
  * ProjectSelector
- * Chọn dự án để xem chi tiết (Kanban/Timeline/Lộ trình/Mindmap/Danh sách) —
- * HTML gốc dùng query "&proj=1" để chọn dự án cho các view này.
+ * Chọn dự án để xem chi tiết (Kanban/Timeline/Lộ trình/Mindmap/Danh sách).
  */
 export interface ProjectSelectorProps {
-  projects: ProjectMockItem[];
+  projects: ProjectNode[];
   selectedId: string;
   onChange: (id: string) => void;
 }
@@ -23,7 +22,7 @@ export function ProjectSelector({ projects, selectedId, onChange }: ProjectSelec
       >
         {projects.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.code} — {p.name}
+            {p.name}
           </option>
         ))}
       </select>

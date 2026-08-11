@@ -1,24 +1,18 @@
 import { Gantt, ViewMode, type Task as GanttTask } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
-import type { ProjectTaskItem } from "../../mocks/projectTasks";
-
-const STATUS_COLOR: Record<ProjectTaskItem["status"], string> = {
-  todo: "#AEB6C4",
-  in_progress: "#F59E0B",
-  review: "#8B5CF6",
-  done: "#10B981",
-};
+import { STATUS_COLOR, type ProjectTaskNode } from "./types";
 
 /**
  * ProjectGantt
  * Bọc gantt-task-react — dùng chung cho cả tab "Timeline" (viewMode=Week) và
- * "Lộ trình" (viewMode=Month) theo yêu cầu dùng gantt-task-react cho 2 view này.
+ * "Lộ trình" (viewMode=Month). Không có cột "ngày bắt đầu" thật trong DB nên
+ * dùng created_at làm mốc bắt đầu (ước lượng hợp lý, không bịa).
  * CSS: .vela-gantt (theme màu chữ theo design tokens)
  */
 export interface ProjectGanttProps {
-  tasks: ProjectTaskItem[];
+  tasks: ProjectTaskNode[];
   viewMode: ViewMode;
-  onSelectTask?: (task: ProjectTaskItem) => void;
+  onSelectTask?: (task: ProjectTaskNode) => void;
 }
 
 export function ProjectGantt({ tasks, viewMode, onSelectTask }: ProjectGanttProps) {
@@ -26,15 +20,19 @@ export function ProjectGantt({ tasks, viewMode, onSelectTask }: ProjectGanttProp
     return <div className="mini-empty">Chưa có công việc nào trong dự án này.</div>;
   }
 
-  const ganttTasks: GanttTask[] = tasks.map((t) => ({
-    id: t.id,
-    type: "task",
-    name: t.title,
-    start: new Date(t.start),
-    end: new Date(t.end),
-    progress: t.progress,
-    styles: { progressColor: STATUS_COLOR[t.status], backgroundColor: `${STATUS_COLOR[t.status]}55` },
-  }));
+  const ganttTasks: GanttTask[] = tasks.map((t) => {
+    const start = new Date(t.createdAt);
+    const end = t.dueDate ? new Date(t.dueDate) : new Date(start.getTime() + 86400000);
+    return {
+      id: t.id,
+      type: "task",
+      name: t.title,
+      start,
+      end: end > start ? end : new Date(start.getTime() + 86400000),
+      progress: t.progressPercent,
+      styles: { progressColor: STATUS_COLOR[t.status], backgroundColor: `${STATUS_COLOR[t.status]}55` },
+    };
+  });
 
   return (
     <div className="vela-gantt">

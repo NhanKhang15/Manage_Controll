@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppShellPage } from "../layout/AppShellPage";
 import { Panel } from "../components/ui/Panel";
 import { TaskHeader, type TaskTopTab } from "../features/tasks/TaskHeader";
@@ -30,7 +31,8 @@ export function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [groupLoading, setGroupLoading] = useState(false);
 
-  const [topTab, setTopTab] = useState<TaskTopTab>("tasks");
+  const [searchParams] = useSearchParams();
+  const [topTab, setTopTab] = useState<TaskTopTab>(searchParams.get("tab") === "approvals" ? "approvals" : "tasks");
   const [group, setGroup] = useState<TaskGroup>("all");
   const [flagFilter, setFlagFilter] = useState<TaskFlagFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -41,7 +43,7 @@ export function TasksPage() {
   useEffect(() => {
     if (!companyId) return;
     let isMounted = true;
-    Promise.all([getCompaniesTree(), getMyTasks(companyId), listProposals(companyId, "pending")])
+    Promise.all([getCompaniesTree(companyId), getMyTasks(companyId), listProposals(companyId, "pending")])
       .then(([tree, mine, proposals]) => {
         if (!isMounted) return;
         setAllTasks(flattenTasks(tree));
@@ -116,7 +118,7 @@ export function TasksPage() {
     try {
       await createTask({ project_id: projectId, name });
       const project = projects.find((p) => p.id === projectId) ?? null;
-      const nextTree = await getCompaniesTree();
+      const nextTree = await getCompaniesTree(companyId || undefined);
       setAllTasks(flattenTasks(nextTree));
       showToast(
         project ? `Đã thêm "${name}" vào ${project.name}. Gợi ý subtask AI sẽ có ở bản cập nhật sau.` : "Đã tạo công việc",

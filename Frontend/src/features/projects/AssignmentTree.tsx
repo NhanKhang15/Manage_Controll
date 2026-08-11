@@ -19,6 +19,7 @@ const STATUS_COLOR: Record<string, string> = {
   "Hoàn thành": "#10B981",
   "Đang làm": "#10B981",
   "Cần làm": "#8A93A6",
+  "Ý tưởng": "#8B5CF6",
   "Triển khai": "#0D9488",
   "Đề xuất & Chọn": "#8B5CF6",
   "Định nghĩa": "#F59E0B",
@@ -29,11 +30,20 @@ function suffixFor(childType: NodeType): string {
   return childType === "company" ? "công ty con" : childType === "project" ? "dự án" : "công việc";
 }
 
+/** 1 công ty có thể vừa có công ty con vừa có dự án riêng cùng lúc, nên đếm
+ * theo từng loại rồi nối lại, thay vì chỉ nhìn loại của children[0]. */
 function recomputeCounts(nodes: TreeNode[]): TreeNode[] {
   return nodes.map((n) => {
     if (!n.children) return n;
     const children = recomputeCounts(n.children);
-    const childCount = children.length > 0 ? `${children.length} ${suffixFor(children[0].type)}` : undefined;
+    let childCount: string | undefined;
+    if (children.length > 0) {
+      const counts = new Map<NodeType, number>();
+      for (const c of children) counts.set(c.type, (counts.get(c.type) ?? 0) + 1);
+      childCount = Array.from(counts.entries())
+        .map(([type, n2]) => `${n2} ${suffixFor(type)}`)
+        .join(" · ");
+    }
     return { ...n, children, childCount };
   });
 }

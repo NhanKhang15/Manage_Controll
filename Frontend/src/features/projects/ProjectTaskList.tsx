@@ -1,29 +1,23 @@
 import { Panel } from "../../components/ui/Panel";
 import { Chip } from "../../components/ui/Chip";
 import { Avatar } from "../../components/ui/Avatar";
-import type { ProjectTaskItem } from "../../mocks/projectTasks";
+import type { ProjectTaskNode } from "./types";
 
-const STATUS_VARIANT: Record<ProjectTaskItem["status"], "default" | "todo" | "in_progress" | "done"> = {
-  todo: "todo",
-  in_progress: "in_progress",
-  review: "in_progress",
-  done: "done",
-};
-
-const STATUS_LABEL: Record<ProjectTaskItem["status"], string> = {
-  todo: "Cần làm",
-  in_progress: "Đang làm",
-  review: "Cần duyệt",
-  done: "Hoàn thành",
+const STATUS_VARIANT: Record<string, "default" | "todo" | "in_progress" | "done"> = {
+  "Ý tưởng": "default",
+  "Cần làm": "todo",
+  "Đang làm": "in_progress",
+  "Hoàn thành": "done",
 };
 
 /**
  * ProjectTaskList
- * Bảng danh sách công việc phẳng của 1 dự án — view "▤ Danh sách".
+ * Bảng danh sách công việc phẳng của 1 dự án (giữ thụt lề theo parentId) —
+ * view "▤ Danh sách".
  */
 export interface ProjectTaskListProps {
-  tasks: ProjectTaskItem[];
-  onSelectTask?: (task: ProjectTaskItem) => void;
+  tasks: ProjectTaskNode[];
+  onSelectTask?: (task: ProjectTaskNode) => void;
 }
 
 export function ProjectTaskList({ tasks, onSelectTask }: ProjectTaskListProps) {
@@ -42,8 +36,7 @@ export function ProjectTaskList({ tasks, onSelectTask }: ProjectTaskListProps) {
           <tr style={{ background: "var(--bg)", borderBottom: "1px solid var(--line-2)", color: "var(--muted)", fontWeight: 600 }}>
             <th style={{ padding: "12px 16px" }}>Công việc</th>
             <th style={{ padding: "12px 16px" }}>Người phụ trách</th>
-            <th style={{ padding: "12px 16px" }}>Bắt đầu</th>
-            <th style={{ padding: "12px 16px" }}>Kết thúc</th>
+            <th style={{ padding: "12px 16px" }}>Hạn</th>
             <th style={{ padding: "12px 16px" }}>Tiến độ</th>
             <th style={{ padding: "12px 16px" }}>Trạng thái</th>
           </tr>
@@ -53,19 +46,23 @@ export function ProjectTaskList({ tasks, onSelectTask }: ProjectTaskListProps) {
             <tr key={task.id} onClick={() => onSelectTask?.(task)} style={{ borderBottom: "1px solid var(--line-2)", cursor: "pointer" }}>
               <td style={{ padding: "12px 16px", fontWeight: 600, paddingLeft: task.parentId ? 32 : 16 }}>
                 {task.parentId ? "↳ " : ""}
+                {task.isMilestone ? "🚩 " : ""}
                 {task.title}
               </td>
               <td style={{ padding: "12px 16px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Avatar name={task.assignee} size={22} />
-                  <span>{task.assignee}</span>
-                </div>
+                {task.picName ?? task.assigneeNames[0] ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Avatar name={(task.picName ?? task.assigneeNames[0]) as string} size={22} />
+                    <span>{task.picName ?? task.assigneeNames[0]}</span>
+                  </div>
+                ) : (
+                  <span className="muted">Chưa gán</span>
+                )}
               </td>
-              <td style={{ padding: "12px 16px", color: "var(--muted)" }}>{task.start}</td>
-              <td style={{ padding: "12px 16px", color: "var(--muted)" }}>{task.end}</td>
-              <td style={{ padding: "12px 16px" }}>{task.progress}%</td>
+              <td style={{ padding: "12px 16px", color: "var(--muted)" }}>{task.dueDate ?? "—"}</td>
+              <td style={{ padding: "12px 16px" }}>{task.progressPercent}%</td>
               <td style={{ padding: "12px 16px" }}>
-                <Chip label={STATUS_LABEL[task.status]} variant={STATUS_VARIANT[task.status]} />
+                <Chip label={task.status} variant={STATUS_VARIANT[task.status]} />
               </td>
             </tr>
           ))}

@@ -23,11 +23,9 @@ export interface ProjectProgressItem {
 
 export interface ActivityItem {
   id: string;
-  initials: string;
-  avatarBg: string;
-  avatarColor: string;
   name: string;
+  avatarUrl?: string | null;
   action: string;
-  detail: string;
+  detail?: string;
   time: string;
 }

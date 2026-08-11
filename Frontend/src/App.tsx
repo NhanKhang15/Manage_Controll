@@ -24,6 +24,7 @@ import { ConnectionsPage } from "./app/ConnectionsPage";
 import { SettingsPage } from "./app/SettingsPage";
 import { LeavePage } from "./app/LeavePage";
 import { OffboardingPage } from "./app/OffboardingPage";
+import { OnboardingPage } from "./app/OnboardingPage";
 import { ProfilePage } from "./app/ProfilePage";
 import { DocumentsPage } from "./app/DocumentsPage";
 import { AiFinancePage } from "./app/AiFinancePage";
@@ -69,6 +70,7 @@ function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/leave" element={<LeavePage />} />
             <Route path="/offboarding" element={<OffboardingPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/ai-finance" element={<AiFinancePage />} />

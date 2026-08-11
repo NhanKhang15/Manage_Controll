@@ -10,8 +10,16 @@ from integrations.google_drive import create_drive_folder
 
 @api_view(['GET'])
 def company_tree(request):
-    root_companies = Company.objects.filter(parent__isnull=True, is_active=True).order_by('order_index')
-    serializer = CompanyTreeSerializer(root_companies, many=True)
+    """company_id không truyền -> trả toàn bộ cây công ty gốc trong hệ thống
+    (dùng cho màn quản lý đa công ty ở trang Dự án → Phân công). Có company_id
+    -> chỉ trả đúng cây của công ty đó, tránh lộ dữ liệu dự án/công việc của
+    công ty khác cho các trang scope theo 1 công ty (Dashboard, Công việc)."""
+    company_id = request.query_params.get('company_id')
+    if company_id:
+        companies = Company.objects.filter(id=company_id, is_active=True)
+    else:
+        companies = Company.objects.filter(parent__isnull=True, is_active=True).order_by('order_index')
+    serializer = CompanyTreeSerializer(companies, many=True)
     return Response(serializer.data)
 
 

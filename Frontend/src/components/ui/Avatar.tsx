@@ -1,17 +1,4 @@
-const PALETTE = ["#4F6EF7", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#0EA5E9", "#0D9488"];
-
-function colorFromName(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return PALETTE[hash % PALETTE.length];
-}
-
-function initialsFromName(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const last = parts[parts.length - 1] ?? "";
-  const first = parts.length > 1 ? parts[0] : "";
-  return (first[0] ?? "" ) + (last[0] ?? "");
-}
+import { colorFromName, initialsFromName } from "../../utils/color";
 
 /**
  * Avatar
@@ -42,7 +29,7 @@ export function Avatar({ name, src, size = 32 }: AvatarProps) {
 
   return (
     <span className="avatar" style={style} title={name}>
-      {initialsFromName(name).toUpperCase()}
+      {initialsFromName(name)}
     </span>
   );
 }
