@@ -20,6 +20,7 @@ export function NavItem({ item, active, onNavigate }: NavItemProps) {
     <a
       className={`nav-item${active ? " active" : ""}`}
       href={item.href}
+      title={item.label}
       onClick={
         onNavigate
           ? (event) => {

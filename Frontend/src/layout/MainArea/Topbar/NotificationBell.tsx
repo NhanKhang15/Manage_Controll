@@ -21,7 +21,7 @@ export function NotificationBell() {
 
   const fetchUnread = async () => {
     try {
-      const data = await getNotifications(true);
+      const data = await getNotifications(true, 20);
       setItems(data);
     } catch {
       // Fallback

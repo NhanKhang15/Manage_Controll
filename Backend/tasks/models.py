@@ -2,6 +2,7 @@ import uuid
 from django.db import models
 from projects.models import Project
 from employees.models import Employee
+from companies.models import Department
 
 
 class Task(models.Model):
@@ -22,6 +23,8 @@ class Task(models.Model):
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='tasks',
         db_column='project_id'
     )
@@ -47,6 +50,15 @@ class Task(models.Model):
         related_name='pic_tasks',
         db_column='pic_id',
         help_text='Người phụ trách chính (khác task_assignments — có thể nhiều người tham gia)'
+    )
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tasks',
+        db_column='department_id',
+        help_text='Phòng ban phụ trách — gán trực tiếp, không còn suy ra qua người được gán việc'
     )
     is_milestone = models.BooleanField(default=False)
     effort_points = models.IntegerField(null=True, blank=True, choices=EFFORT_CHOICES)

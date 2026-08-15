@@ -1,3 +1,4 @@
+from django.db.models import F, Case, When, Value, IntegerField
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -6,6 +7,7 @@ from .models import Task, TaskAssignment
 from .serializers import TaskFlatSerializer, TaskTreeSerializer
 from projects.models import Project
 from employees.models import Employee
+from companies.models import Department
 
 VALID_STATUSES = {choice[0] for choice in Task.STATUS_CHOICES}
 
@@ -20,6 +22,109 @@ def _descendant_ids(task):
     return ids
 
 
+def _build_paginated_task_response(qs, request):
+    status_param = request.query_params.get('status')
+    if status_param and status_param.strip() and status_param.lower() != 'all':
+        qs = qs.filter(status=status_param.strip())
+
+    search_param = request.query_params.get('search', '').strip()
+    if search_param:
+        qs = qs.filter(name__icontains=search_param)
+
+    project_id = request.query_params.get('project_id')
+    if project_id:
+        qs = qs.filter(project_id=project_id)
+
+    department_id = request.query_params.get('department_id')
+    if department_id:
+        # department giờ là FK trực tiếp trên Task (không còn suy ra qua
+        # assignments), nên lọc thẳng, không cần join/distinct nữa.
+        qs = qs.filter(department_id=department_id)
+
+    ordering = request.query_params.get('ordering', '').strip()
+    ORDER_MAP = {
+        'due_date': F('due_date').asc(nulls_last=True),
+        'due_date_asc': F('due_date').asc(nulls_last=True),
+        '-due_date': F('due_date').desc(nulls_last=True),
+        'due_date_desc': F('due_date').desc(nulls_last=True),
+        'created_at': 'created_at',
+        'created_at_asc': 'created_at',
+        '-created_at': '-created_at',
+        'created_at_desc': '-created_at',
+        'name': 'name',
+        'name_asc': 'name',
+        '-name': '-name',
+        'name_desc': '-name',
+        'status': 'status',
+        'status_asc': 'status',
+        '-status': '-status',
+        'status_desc': '-status',
+        # FK trực tiếp trên Task (project, pic, department) nên order_by qua
+        # quan hệ được thẳng, không cần subquery nữa.
+        'project_asc': F('project__name').asc(nulls_last=True),
+        'project_desc': F('project__name').desc(nulls_last=True),
+        'pic_asc': F('pic__full_name').asc(nulls_last=True),
+        'pic_desc': F('pic__full_name').desc(nulls_last=True),
+        'department_asc': F('department__name').asc(nulls_last=True),
+        'department_desc': F('department__name').desc(nulls_last=True),
+        # "% hoàn thành" hiển thị trên FE chỉ có 2 mức 0%/100% theo is_completed
+        # (xem TaskTable.tsx) nên dùng thẳng cờ này làm khoá sắp xếp.
+        'progress_asc': F('is_completed').asc(),
+        'progress_desc': F('is_completed').desc(),
+    }
+
+    if ordering in ('alert_asc', 'alert_desc'):
+        # "Cảnh báo" cũng là giá trị suy ra (AlertTag ở FE): xếp hạng mức độ
+        # khẩn cấp — Trễ hạn (0) → chưa có cảnh báo (1) → Hoàn tất (2).
+        today = timezone.now().date()
+        qs = qs.annotate(
+            alert_rank=Case(
+                When(is_completed=True, then=Value(2)),
+                When(due_date__lt=today, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        )
+        alert_order = 'alert_rank' if ordering == 'alert_asc' else '-alert_rank'
+        qs = qs.order_by(alert_order, 'created_at')
+    else:
+        order_expr = ORDER_MAP.get(ordering, F('due_date').asc(nulls_last=True))
+        if isinstance(order_expr, str):
+            qs = qs.order_by(order_expr)
+        else:
+            qs = qs.order_by(order_expr, 'created_at')
+
+    total_count = qs.count()
+
+    has_limit_param = 'limit' in request.query_params
+    has_offset_param = 'offset' in request.query_params
+    has_page_param = 'page' in request.query_params
+
+    try:
+        limit = min(int(request.query_params.get('limit', 10)), 100)
+    except ValueError:
+        limit = 10
+
+    try:
+        offset = max(int(request.query_params.get('offset', 0)), 0)
+    except ValueError:
+        offset = 0
+
+    page_qs = qs.select_related('project', 'pic', 'department').prefetch_related('assignments__employee')[offset:offset + limit]
+    serialized_data = TaskFlatSerializer(page_qs, many=True).data
+
+    if has_limit_param or has_offset_param or has_page_param:
+        return Response({
+            'total': total_count,
+            'limit': limit,
+            'offset': offset,
+            'has_more': (offset + limit) < total_count,
+            'results': serialized_data
+        })
+
+    return Response(serialized_data)
+
+
 @api_view(['POST'])
 def create_task(request):
     name = request.data.get('name')
@@ -28,20 +133,40 @@ def create_task(request):
 
     parent = None
     parent_id = request.data.get('parent_id')
+
+    department = None
+    department_id = request.data.get('department_id')
+    if department_id:
+        try:
+            department = Department.objects.get(id=department_id)
+        except Department.DoesNotExist:
+            return Response({'detail': 'Phòng ban không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
     if parent_id:
         try:
             parent = Task.objects.get(id=parent_id)
         except Task.DoesNotExist:
             return Response({'detail': 'Việc cha không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
         project = parent.project
+        if not department and parent.department:
+            department = parent.department
     else:
         project_id = request.data.get('project_id')
-        if not project_id:
-            return Response({'detail': 'Dự án không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            project = Project.objects.get(id=project_id)
-        except Project.DoesNotExist:
-            return Response({'detail': 'Dự án không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+        if project_id:
+            try:
+                project = Project.objects.get(id=project_id)
+            except Project.DoesNotExist:
+                return Response({'detail': 'Dự án không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+        elif department:
+            # Lấy dự án đầu tiên của công ty thuộc phòng ban, hoặc tạo dự án chung
+            project = department.company.projects.order_by('order_index').first()
+            if not project:
+                project = Project.objects.create(
+                    company=department.company,
+                    name=f"Dự án chung - {department.company.name}"
+                )
+        else:
+            return Response({'detail': 'Cần chọn dự án hoặc phòng ban'}, status=status.HTTP_400_BAD_REQUEST)
 
     pic = None
     pic_id = request.data.get('pic_id')
@@ -58,6 +183,7 @@ def create_task(request):
         status='Cần làm',
         is_completed=False,
         pic=pic,
+        department=department,
         is_milestone=bool(request.data.get('is_milestone', False)),
         effort_points=request.data.get('effort_points') or None,
         notes=(request.data.get('notes') or '').strip(),
@@ -114,6 +240,16 @@ def task_detail(request, pk):
             except Employee.DoesNotExist:
                 return Response({'detail': 'Người phụ trách không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
 
+    if 'department_id' in data:
+        department_id = data['department_id']
+        if not department_id:
+            task.department = None
+        else:
+            try:
+                task.department = Department.objects.get(id=department_id)
+            except Department.DoesNotExist:
+                return Response({'detail': 'Phòng ban không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
     if 'is_milestone' in data:
         task.is_milestone = bool(data['is_milestone'])
 
@@ -149,19 +285,60 @@ def task_detail(request, pk):
 @api_view(['PATCH'])
 def reorder_tasks(request):
     task_ids = request.data.get('taskIds', [])
-    new_project_id = request.data.get('newProjectId')
+    new_parent_target = request.data.get('newProjectId')
     new_index = request.data.get('newIndex', 0)
 
-    if not new_project_id:
-        return Response({'detail': 'Dự án mới không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
+    if not new_parent_target:
+        return Response({'detail': 'Mục tiêu mới không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        project = Project.objects.get(id=new_project_id)
-    except Project.DoesNotExist:
-        return Response({'detail': 'Dự án mới không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+    project = Project.objects.filter(id=new_parent_target).first()
+    department = Department.objects.filter(id=new_parent_target).first()
+    parent_task = Task.objects.filter(id=new_parent_target).first()
+
+    if not project and not department and not parent_task:
+        return Response({'detail': 'Mục tiêu mới không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
 
     for idx, tid in enumerate(task_ids):
-        Task.objects.filter(id=tid).update(project=project, order_index=new_index + idx)
+        task = Task.objects.filter(id=tid).first()
+        proj_item = Project.objects.filter(id=tid).first()
+
+        if task:
+            if project:
+                # Chuyển task vào Folder mới -> cập nhật cả project_id và department_id theo folder đó
+                task.project = project
+                task.department = project.department
+                task.parent = None
+                task.order_index = new_index + idx
+                task.save()
+            elif department:
+                # Chuyển task trực tiếp vào Phòng ban mới -> xóa project_id và parent_id
+                task.department = department
+                task.project = None
+                task.parent = None
+                task.order_index = new_index + idx
+                task.save()
+            elif parent_task:
+                # Chuyển task thành Việc con của parent_task
+                if parent_task.id != task.id:
+                    task.parent = parent_task
+                    task.project = parent_task.project
+                    task.department = parent_task.department
+                    task.order_index = new_index + idx
+                    task.save()
+        elif proj_item:
+            if department:
+                # Chuyển Folder vào Phòng ban mới
+                proj_item.department = department
+                proj_item.parent = None
+                proj_item.order_index = new_index + idx
+                proj_item.save()
+            elif project:
+                # Chuyển Folder thành Sub-folder con của project
+                if project.id != proj_item.id:
+                    proj_item.parent = project
+                    proj_item.department = project.department
+                    proj_item.order_index = new_index + idx
+                    proj_item.save()
 
     return Response({'detail': 'Reordered successfully'}, status=status.HTTP_200_OK)
 
@@ -177,7 +354,7 @@ def my_tasks_view(request):
     if company_id:
         qs = qs.filter(project__company_id=company_id)
 
-    return Response(TaskFlatSerializer(qs.select_related('project').order_by('due_date'), many=True).data)
+    return _build_paginated_task_response(qs, request)
 
 
 @api_view(['GET'])
@@ -188,6 +365,9 @@ def department_tasks_view(request):
 
     dept_ids = list(employee.employee_departments.values_list('department_id', flat=True))
     if not dept_ids:
+        has_pagination = 'limit' in request.query_params or 'offset' in request.query_params or 'page' in request.query_params
+        if has_pagination:
+            return Response({'total': 0, 'limit': 10, 'offset': 0, 'has_more': False, 'results': []})
         return Response([])
 
     company_id = request.query_params.get('company_id')
@@ -197,7 +377,17 @@ def department_tasks_view(request):
     if company_id:
         qs = qs.filter(project__company_id=company_id)
 
-    return Response(TaskFlatSerializer(qs.select_related('project').order_by('due_date'), many=True).data)
+    return _build_paginated_task_response(qs, request)
+
+
+@api_view(['GET'])
+def all_tasks_view(request):
+    company_id = request.query_params.get('company_id')
+    qs = Task.objects.all()
+    if company_id:
+        qs = qs.filter(project__company_id=company_id)
+
+    return _build_paginated_task_response(qs, request)
 
 
 @api_view(['POST'])

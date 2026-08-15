@@ -49,7 +49,7 @@ function toTaskStatus(raw: string | undefined): TaskStatus {
 }
 
 function toTaskNode(node: TreeNode, projectId: string): ProjectTaskNode {
-  const children = (node.children ?? []).map((c) => toTaskNode(c, projectId));
+  const children = (node.children ?? []).filter((c) => c.type === "task").map((c) => toTaskNode(c, projectId));
   return {
     id: node.id,
     projectId,
@@ -71,7 +71,7 @@ function toTaskNode(node: TreeNode, projectId: string): ProjectTaskNode {
   };
 }
 
-/** Duyệt cây company → project để lấy toàn bộ dự án (kèm cây task lồng nhau) của 1 công ty. */
+/** Duyệt cây company → department → project để lấy toàn bộ folder/dự án (kèm cây task lồng nhau). */
 export function toProjectNodes(nodes: TreeNode[], companyId: string): ProjectNode[] {
   const result: ProjectNode[] = [];
   for (const node of nodes) {
@@ -83,8 +83,13 @@ export function toProjectNodes(nodes: TreeNode[], companyId: string): ProjectNod
         status: node.status ?? null,
         progressPercent: node.progress_percent ?? 0,
         driveFolderUrl: node.drive_folder_url ?? null,
-        tasks: (node.children ?? []).map((c) => toTaskNode(c, node.id)),
+        tasks: (node.children ?? []).filter((c) => c.type === "task").map((c) => toTaskNode(c, node.id)),
       });
+      // Nếu folder này có sub-folder con, cũng trích xuất các sub-folder con
+      const subProjects = (node.children ?? []).filter((c) => c.type === "project");
+      if (subProjects.length > 0) {
+        result.push(...toProjectNodes(subProjects, companyId));
+      }
     } else if (node.children) {
       result.push(...toProjectNodes(node.children, node.type === "company" ? node.id : companyId));
     }

@@ -1,12 +1,41 @@
 import { Chip } from "../../components/ui/Chip";
-import type { TaskItem } from "./types";
+import type { TaskItem, TaskSortDir, TaskSortKey } from "./types";
 
 export interface TaskTableProps {
   tasks: TaskItem[];
+  sortKey: TaskSortKey;
+  sortDir: TaskSortDir;
+  onSort: (key: TaskSortKey) => void;
   onSelectTask?: (task: TaskItem) => void;
   onFlag?: (task: TaskItem) => void;
   onProblem?: (task: TaskItem) => void;
   onAutomate?: (task: TaskItem) => void;
+}
+
+function SortableTh({
+  label,
+  sortKey,
+  activeKey,
+  activeDir,
+  onSort,
+  className,
+}: {
+  label: string;
+  sortKey: TaskSortKey;
+  activeKey: TaskSortKey;
+  activeDir: TaskSortDir;
+  onSort: (key: TaskSortKey) => void;
+  className?: string;
+}) {
+  const active = sortKey === activeKey;
+  return (
+    <th className={className}>
+      <button type="button" className={`th-sort-btn${active ? " active" : ""}`} onClick={() => onSort(sortKey)}>
+        {label}
+        <span className="th-sort-arrow">{active ? (activeDir === "asc" ? "▲" : "▼") : ""}</span>
+      </button>
+    </th>
+  );
 }
 
 function AlertTag({ task }: { task: TaskItem }) {
@@ -21,7 +50,7 @@ function DueCell({ task }: { task: TaskItem }) {
   return <span className="muted">—</span>;
 }
 
-export function TaskTable({ tasks, onSelectTask, onFlag, onProblem, onAutomate }: TaskTableProps) {
+export function TaskTable({ tasks, sortKey, sortDir, onSort, onSelectTask, onFlag, onProblem, onAutomate }: TaskTableProps) {
   if (tasks.length === 0) {
     return (
       <div className="table-wrap">
@@ -37,13 +66,13 @@ export function TaskTable({ tasks, onSelectTask, onFlag, onProblem, onAutomate }
       <table className="task-table">
         <thead>
           <tr>
-            <th className="col-title">Việc</th>
-            <th className="col-proj">Dự án</th>
-            <th className="col-dept">Bộ phận</th>
-            <th className="col-alert">Cảnh báo</th>
-            <th className="col-prog">% hoàn thành</th>
-            <th className="col-assignee">Người phụ trách</th>
-            <th className="col-due">Hạn</th>
+            <SortableTh label="Việc" sortKey="name" activeKey={sortKey} activeDir={sortDir} onSort={onSort} className="col-title" />
+            <SortableTh label="Dự án" sortKey="project" activeKey={sortKey} activeDir={sortDir} onSort={onSort} className="col-proj" />
+            <SortableTh label="Bộ phận" sortKey="department" activeKey={sortKey} activeDir={sortDir} onSort={onSort} className="col-dept" />
+            <SortableTh label="Cảnh báo" sortKey="alert" activeKey={sortKey} activeDir={sortDir} onSort={onSort} className="col-alert" />
+            <SortableTh label="% hoàn thành" sortKey="progress" activeKey={sortKey} activeDir={sortDir} onSort={onSort} className="col-prog" />
+            <SortableTh label="Người phụ trách" sortKey="pic" activeKey={sortKey} activeDir={sortDir} onSort={onSort} className="col-assignee" />
+            <SortableTh label="Hạn" sortKey="due_date" activeKey={sortKey} activeDir={sortDir} onSort={onSort} className="col-due" />
             <th className="col-actions">Xử lý</th>
           </tr>
         </thead>

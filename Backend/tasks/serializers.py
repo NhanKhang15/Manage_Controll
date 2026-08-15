@@ -20,17 +20,6 @@ def serialize_pic(task):
     return {'id': task.pic_id, 'full_name': task.pic.full_name, 'avatar_url': task.pic.avatar_url}
 
 
-def task_department_name(task):
-    """Bộ phận của công việc = phòng ban (ưu tiên phòng chính) của người phụ trách đầu tiên."""
-    assignment = task.assignments.select_related('employee').first()
-    if not assignment:
-        return None
-    dept_link = assignment.employee.employee_departments.filter(is_primary=True).select_related('department').first()
-    if not dept_link:
-        dept_link = assignment.employee.employee_departments.select_related('department').first()
-    return dept_link.department.name if dept_link else None
-
-
 def leaf_progress(task):
     """(số leaf đã xong, tổng số leaf) — đệ quy tới task không còn con. 1 task
     không có con tự nó là 1 leaf, tính Hoàn thành theo is_completed."""
@@ -65,6 +54,7 @@ class TaskTreeSerializer(serializers.ModelSerializer):
     completed = serializers.BooleanField(source='is_completed')
     assignees = serializers.SerializerMethodField()
     department = serializers.SerializerMethodField()
+    department_id = serializers.SerializerMethodField()
     pic = serializers.SerializerMethodField()
     children = serializers.SerializerMethodField()
     childCount = serializers.SerializerMethodField()
@@ -74,7 +64,7 @@ class TaskTreeSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'type', 'name', 'status', 'completed', 'completed_at', 'due_date',
-            'order_index', 'assignees', 'department', 'pic', 'is_milestone',
+            'order_index', 'assignees', 'department', 'department_id', 'pic', 'is_milestone',
             'effort_points', 'notes', 'parent', 'children', 'childCount', 'progress_percent',
             'created_at',
         ]
@@ -83,7 +73,10 @@ class TaskTreeSerializer(serializers.ModelSerializer):
         return serialize_assignees(obj)
 
     def get_department(self, obj):
-        return task_department_name(obj)
+        return obj.department.name if obj.department_id else None
+
+    def get_department_id(self, obj):
+        return obj.department_id
 
     def get_pic(self, obj):
         return serialize_pic(obj)
@@ -107,13 +100,14 @@ class TaskFlatSerializer(serializers.ModelSerializer):
     project = serializers.SerializerMethodField()
     assignees = serializers.SerializerMethodField()
     department = serializers.SerializerMethodField()
+    department_id = serializers.SerializerMethodField()
     pic = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
         fields = [
             'id', 'name', 'status', 'completed', 'completed_at', 'due_date', 'project',
-            'assignees', 'department', 'pic', 'is_milestone', 'effort_points', 'notes', 'parent',
+            'assignees', 'department', 'department_id', 'pic', 'is_milestone', 'effort_points', 'notes', 'parent',
         ]
 
     def get_project(self, obj):
@@ -123,7 +117,10 @@ class TaskFlatSerializer(serializers.ModelSerializer):
         return serialize_assignees(obj)
 
     def get_department(self, obj):
-        return task_department_name(obj)
+        return obj.department.name if obj.department_id else None
+
+    def get_department_id(self, obj):
+        return obj.department_id
 
     def get_pic(self, obj):
         return serialize_pic(obj)

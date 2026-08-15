@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/projects/', project_views.create_project, name='create_project'),
     path('api/projects/<str:pk>/', project_views.delete_project, name='delete_project'),
     path('api/tasks/', task_views.create_task, name='create_task'),
+    path('api/tasks/all/', task_views.all_tasks_view, name='all_tasks'),
     path('api/tasks/mine/', task_views.my_tasks_view, name='my_tasks'),
     path('api/tasks/department/', task_views.department_tasks_view, name='department_tasks'),
     path('api/tasks/reorder/', task_views.reorder_tasks, name='reorder_tasks'),
@@ -36,6 +37,7 @@ urlpatterns = [
     path('api/proposals/<str:pk>/decide/', proposal_views.proposal_decide_view, name='proposal_decide'),
     path('api/employees/', employee_views.get_employees, name='get_employees'),
     path('api/departments/', company_views.get_departments, name='get_departments'),
+    path('api/departments/<str:pk>/', company_views.delete_department, name='delete_department'),
 
     # Events & Drivers
     path('api/events/', event_views.get_events, name='get_events'),

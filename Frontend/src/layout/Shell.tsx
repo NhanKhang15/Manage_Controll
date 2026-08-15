@@ -14,7 +14,7 @@ export interface ShellProps {
 
 export function Shell({ sidebar, mainArea }: ShellProps) {
   return (
-    <div className="shell">
+    <div className={`shell${sidebar.collapsed ? " shell-collapsed" : ""}`}>
       <Sidebar {...sidebar} />
       <MainArea {...mainArea} />
     </div>

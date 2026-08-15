@@ -2,8 +2,9 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { Tree, getTreeLinePrefix, type NodeRendererProps } from "react-arborist";
 import {
   getCompaniesTree,
-  createCompanyWithFolder,
   deleteCompany,
+  createDepartment,
+  deleteDepartment,
   type TreeNode,
   type NodeType,
 } from "../../api/companies";
@@ -13,7 +14,12 @@ import { CreateCompanyModal } from "./CreateCompanyModal";
 
 export type { NodeType, TreeNode };
 
-const TYPE_ICON: Record<NodeType, string> = { company: "🏢", project: "📄", task: "☰" };
+const TYPE_ICON: Record<NodeType, string> = {
+  company: "🏢",
+  department: "👥",
+  project: "📁",
+  task: "☰",
+};
 
 const STATUS_COLOR: Record<string, string> = {
   "Hoàn thành": "#10B981",
@@ -27,11 +33,13 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 function suffixFor(childType: NodeType): string {
-  return childType === "company" ? "công ty con" : childType === "project" ? "dự án" : "công việc";
+  if (childType === "company") return "công ty con";
+  if (childType === "department") return "phòng ban";
+  if (childType === "project") return "folder";
+  return "công việc";
 }
 
-/** 1 công ty có thể vừa có công ty con vừa có dự án riêng cùng lúc, nên đếm
- * theo từng loại rồi nối lại, thay vì chỉ nhìn loại của children[0]. */
+/** 1 node có thể chứa nhiều loại con cùng lúc, nên đếm theo từng loại rồi nối lại */
 function recomputeCounts(nodes: TreeNode[]): TreeNode[] {
   return nodes.map((n) => {
     if (!n.children) return n;
@@ -102,6 +110,76 @@ function toggleTask(nodes: TreeNode[], id: string): TreeNode[] {
   });
 }
 
+function LevelBadge({ type }: { type: NodeType }) {
+  if (type === "company") {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          fontSize: 10.5,
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          color: "#1E40AF",
+          background: "#EFF6FF",
+          border: "1px solid #BFDBFE",
+          borderRadius: 6,
+          padding: "1.5px 7px",
+          textTransform: "uppercase",
+          flex: "none",
+        }}
+      >
+        Công ty
+      </span>
+    );
+  }
+  if (type === "department") {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          fontSize: 10.5,
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          color: "#6D28D9",
+          background: "#F5F3FF",
+          border: "1px solid #DDD6FE",
+          borderRadius: 6,
+          padding: "1.5px 7px",
+          textTransform: "uppercase",
+          flex: "none",
+        }}
+      >
+        Phòng ban
+      </span>
+    );
+  }
+  if (type === "project") {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          fontSize: 10.5,
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          color: "#047857",
+          background: "#ECFDF5",
+          border: "1px solid #A7F3D0",
+          borderRadius: 6,
+          padding: "1.5px 7px",
+          textTransform: "uppercase",
+          flex: "none",
+        }}
+      >
+        Folder
+      </span>
+    );
+  }
+  return null;
+}
+
 function StatusTag({ status }: { status: string }) {
   const color = STATUS_COLOR[status] ?? "#8A93A6";
   return (
@@ -110,17 +188,17 @@ function StatusTag({ status }: { status: string }) {
         display: "inline-flex",
         alignItems: "center",
         gap: 5,
-        fontSize: 12,
+        fontSize: 11.5,
         fontWeight: 600,
         color,
         background: `${color}18`,
         border: `1px solid ${color}55`,
         borderRadius: 99,
-        padding: "2px 10px",
+        padding: "1.5px 8px",
         whiteSpace: "nowrap",
       }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, flex: "none" }} />
+      <span style={{ width: 5.5, height: 5.5, borderRadius: "50%", background: color, flex: "none" }} />
       {status}
     </span>
   );
@@ -130,11 +208,12 @@ function CountTag({ label }: { label: string }) {
   return (
     <span
       style={{
-        fontSize: 12,
-        color: "var(--muted)",
-        background: "var(--line-2)",
+        fontSize: 11.5,
+        fontWeight: 500,
+        color: "var(--muted, #8A93A6)",
+        background: "var(--line-2, #F1F3F7)",
         borderRadius: 99,
-        padding: "2px 10px",
+        padding: "1.5px 8px",
         whiteSpace: "nowrap",
       }}
     >
@@ -144,14 +223,25 @@ function CountTag({ label }: { label: string }) {
 }
 
 const iconBtnStyle: CSSProperties = { background: "none", border: "none", cursor: "pointer", color: "var(--muted-2)", padding: 4, fontSize: 14 };
-const linkBtnStyle: CSSProperties = { background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" };
+const linkBtnStyle: CSSProperties = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  color: "var(--brand, #4F6EF7)",
+  fontSize: 12.5,
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+  padding: "3px 8px",
+  borderRadius: 6,
+  transition: "all 0.15s ease",
+};
 
 export function AssignmentTree() {
   const [data, setData] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isCreatingCompany, setIsCreatingCompany] = useState<boolean>(false);
   const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [modalParentCompany, setModalParentCompany] = useState<{ id: string; name: string } | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -167,7 +257,7 @@ export function AssignmentTree() {
       })
       .catch((err: any) => {
         if (isMounted) {
-          setError(err.message || "Không thể tải danh sách cây dự án");
+          setError(err.message || "Không thể tải danh sách cây phân cấp");
           setLoading(false);
         }
       });
@@ -176,59 +266,102 @@ export function AssignmentTree() {
     };
   }, []);
 
+  function handleOpenCreateCompany(parent?: TreeNode | null) {
+    if (parent) {
+      setModalParentCompany({ id: parent.id, name: parent.name });
+    } else {
+      setModalParentCompany(null);
+    }
+    setModalOpen(true);
+  }
+
   function handleCreateCompanySuccess(newCompany: any) {
     const newNode: TreeNode = {
       ...newCompany,
       type: "company",
-      children: [],
+      children: newCompany.children || [],
     };
-    setData((prev) => recomputeCounts([...prev, newNode]));
+    if (modalParentCompany) {
+      setData((prev) => recomputeCounts(addChildTo(prev, modalParentCompany.id, newNode)));
+    } else {
+      setData((prev) => recomputeCounts([...prev, newNode]));
+    }
     setHighlightId(newCompany.id);
-    setTimeout(() => setHighlightId(null), 2000);
+    setTimeout(() => setHighlightId(null), 2500);
   }
 
-  async function handleAdd(parent: TreeNode, type: NodeType) {
-    const label = type === "company" ? "công ty con" : type === "project" ? "dự án" : "công việc";
-    const name = window.prompt(`Tên ${label} mới:`);
+  async function handleAddDepartment(company: TreeNode) {
+    const name = window.prompt(`Tên phòng ban mới trong "${company.name}":`);
     if (!name || !name.trim()) return;
-
     setError(null);
+    try {
+      const newNode = await createDepartment({ company_id: company.id, name: name.trim() });
+      setData((prev) => recomputeCounts(addChildTo(prev, company.id, { ...newNode, type: "department", children: [] })));
+      setHighlightId(newNode.id);
+      setTimeout(() => setHighlightId(null), 2000);
+    } catch (err: any) {
+      setError(err.message || "Không thể tạo phòng ban mới");
+    }
+  }
 
-    if (type === "company") {
-      setIsCreatingCompany(true);
-      try {
-        const newNode = await createCompanyWithFolder({ name: name.trim(), parent_id: parent.id });
-        setData((prev) => recomputeCounts(addChildTo(prev, parent.id, newNode)));
-        setHighlightId(newNode.id);
-        setTimeout(() => setHighlightId(null), 2000);
-      } catch (err: any) {
-        setError(err.message || "Không thể tạo công ty mới");
-      } finally {
-        setIsCreatingCompany(false);
+  async function handleAddFolder(parent: TreeNode) {
+    const label = parent.type === "department" ? "Folder mới trong phòng ban" : "Folder con mới";
+    const name = window.prompt(`Tên ${label} "${parent.name}":`);
+    if (!name || !name.trim()) return;
+    setError(null);
+    try {
+      let newNode: TreeNode;
+      if (parent.type === "department") {
+        newNode = await createProject({ department_id: parent.id, name: name.trim() });
+      } else {
+        newNode = await createProject({ parent_id: parent.id, name: name.trim() });
       }
-    } else if (type === "project") {
-      try {
-        const newNode = await createProject({ company_id: parent.id, name: name.trim() });
-        setData((prev) => recomputeCounts(addChildTo(prev, parent.id, newNode)));
-      } catch (err: any) {
-        setError(err.message || "Không thể tạo dự án mới");
+      setData((prev) => recomputeCounts(addChildTo(prev, parent.id, { ...newNode, type: "project", children: [] })));
+      setHighlightId(newNode.id);
+      setTimeout(() => setHighlightId(null), 2000);
+    } catch (err: any) {
+      setError(err.message || "Không thể tạo folder mới");
+    }
+  }
+
+  async function handleAddTask(parent: TreeNode) {
+    const label = parent.type === "department" ? "công việc trong phòng ban" : parent.type === "project" ? "công việc trong folder" : "công việc con";
+    const name = window.prompt(`Tên ${label} "${parent.name}":`);
+    if (!name || !name.trim()) return;
+    setError(null);
+    try {
+      let newNode: TreeNode;
+      if (parent.type === "department") {
+        newNode = await createTask({ department_id: parent.id, name: name.trim() });
+      } else if (parent.type === "project") {
+        newNode = await createTask({ project_id: parent.id, name: name.trim() });
+      } else {
+        newNode = await createTask({ parent_id: parent.id, name: name.trim() });
       }
-    } else if (type === "task") {
-      try {
-        const newNode = await createTask({ project_id: parent.id, name: name.trim() });
-        setData((prev) => recomputeCounts(addChildTo(prev, parent.id, newNode)));
-      } catch (err: any) {
-        setError(err.message || "Không thể tạo công việc mới");
-      }
+      setData((prev) => recomputeCounts(addChildTo(prev, parent.id, { ...newNode, type: "task", children: [] })));
+      setHighlightId(newNode.id);
+      setTimeout(() => setHighlightId(null), 2000);
+    } catch (err: any) {
+      setError(err.message || "Không thể tạo công việc mới");
     }
   }
 
   async function handleDelete(node: TreeNode) {
-    if (!window.confirm(`Xoá "${node.name}"? Các mục con bên trong cũng sẽ bị xoá.`)) return;
+    const label =
+      node.type === "company"
+        ? "công ty"
+        : node.type === "department"
+        ? "phòng ban"
+        : node.type === "project"
+        ? "folder"
+        : "công việc";
+    if (!window.confirm(`Xoá ${label} "${node.name}"? Tất cả các mục con bên trong cũng sẽ bị xoá.`)) return;
     setError(null);
     try {
       if (node.type === "company") {
         await deleteCompany(node.id);
+      } else if (node.type === "department") {
+        await deleteDepartment(node.id);
       } else if (node.type === "project") {
         await deleteProject(node.id);
       } else if (node.type === "task") {
@@ -283,28 +416,71 @@ export function AssignmentTree() {
   function Row({ node, style, dragHandle }: NodeRendererProps<TreeNode>) {
     const item = node.data;
     const isTask = item.type === "task";
+    const isProject = item.type === "project";
+    const isDraggable = isTask || isProject;
     const canToggle = !isTask && !!item.children && item.children.length > 0;
     const linePrefix = getTreeLinePrefix(node, { last: "└─ ", middle: "├─ ", pipe: "│  ", blank: "   " });
     const isHighlighted = item.id === highlightId;
 
+    // Distinct styling per level
+    const levelNameColor =
+      item.type === "company"
+        ? "var(--text, #0F172A)"
+        : item.type === "department"
+        ? "#3730A3"
+        : item.type === "project"
+        ? "#065F46"
+        : item.completed
+        ? "var(--muted, #8A93A6)"
+        : "var(--text, #1E293B)";
+
+    const levelFontWeight =
+      item.type === "company" ? 750 : item.type === "department" || item.type === "project" ? 650 : 500;
+
+    const levelBg =
+      isHighlighted
+        ? "#FEF9C3"
+        : node.willReceiveDrop
+        ? "var(--brand-soft, #EEF1FE)"
+        : item.type === "department"
+        ? "rgba(245, 243, 255, 0.4)"
+        : item.type === "project"
+        ? "rgba(236, 253, 245, 0.35)"
+        : "transparent";
+
     return (
       <div
-        ref={isTask ? dragHandle : undefined}
-        className={`flex items-center gap-1.5 h-full px-3 rounded-lg transition-colors duration-1000 ${
-          isHighlighted ? "bg-yellow-50" : node.willReceiveDrop ? "bg-[var(--brand-soft)]" : "bg-transparent"
-        }`}
+        ref={isDraggable ? dragHandle : undefined}
+        className={`flex items-center gap-1.5 h-full px-2.5 rounded-lg transition-colors duration-300`}
         style={{
           ...style,
           height: "100%",
+          cursor: isDraggable ? "grab" : "default",
+          backgroundColor: levelBg,
+          borderLeft:
+            item.type === "department"
+              ? "3px solid #8B5CF6"
+              : item.type === "project"
+              ? "3px solid #10B981"
+              : item.type === "company"
+              ? "3px solid #3B82F6"
+              : "3px solid transparent",
+          paddingLeft: "6px",
         }}
       >
         {linePrefix && (
-          <span style={{ fontFamily: "monospace", fontSize: 13, color: "var(--line)", whiteSpace: "pre", flex: "none" }}>
+          <span style={{ fontFamily: "monospace", fontSize: 13, color: "var(--line, #CBD5E1)", whiteSpace: "pre", flex: "none" }}>
             {linePrefix}
           </span>
         )}
 
-        {isTask ? <span style={{ color: "var(--muted-2)", cursor: "grab", fontSize: 13 }}>⠿</span> : <span style={{ width: 12 }} />}
+        {isDraggable ? (
+          <span style={{ color: "var(--muted-2)", cursor: "grab", fontSize: 13, marginRight: 2 }} title="Kéo để di chuyển">
+            ⠿
+          </span>
+        ) : (
+          <span style={{ width: 10 }} />
+        )}
 
         {canToggle ? (
           <button
@@ -314,6 +490,7 @@ export function AssignmentTree() {
               node.toggle();
             }}
             style={{ ...iconBtnStyle, width: 16, padding: 0, fontSize: 13 }}
+            title={node.isOpen ? "Thu gọn" : "Mở rộng"}
           >
             {node.isOpen ? "⌄" : "›"}
           </button>
@@ -321,17 +498,20 @@ export function AssignmentTree() {
           <span style={{ width: 16 }} />
         )}
 
-        <span style={{ fontSize: 14 }}>{TYPE_ICON[item.type]}</span>
+        <span style={{ fontSize: 14, flex: "none" }}>{TYPE_ICON[item.type]}</span>
+
+        <LevelBadge type={item.type} />
 
         <span
           onClick={canToggle ? () => node.toggle() : undefined}
           style={{
-            fontWeight: isTask ? 500 : 700,
-            fontSize: 14,
+            fontWeight: levelFontWeight,
+            fontSize: isTask ? 13.5 : 14,
             cursor: canToggle ? "pointer" : "default",
             textDecoration: item.completed ? "line-through" : "none",
-            color: item.completed ? "var(--muted)" : "var(--text)",
+            color: levelNameColor,
             whiteSpace: "nowrap",
+            marginLeft: "2px",
           }}
         >
           {item.name}
@@ -342,56 +522,116 @@ export function AssignmentTree() {
 
         <span style={{ flex: 1 }} />
 
+        {/* Level 1: Công ty (chứa Công ty con & Phòng ban) */}
         {item.type === "company" && (
           <>
             <button
               type="button"
-              disabled={isCreatingCompany}
-              style={{ ...linkBtnStyle, opacity: isCreatingCompany ? 0.5 : 1 }}
+              style={linkBtnStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                handleAdd(item, "company");
+                handleOpenCreateCompany(item);
               }}
+              title="Tạo công ty con trực thuộc"
             >
-              {isCreatingCompany ? "+ Đang tạo..." : "+ Công ty con"}
+              + Công ty con
             </button>
             <button
               type="button"
               style={linkBtnStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                handleAdd(item, "project");
+                handleAddDepartment(item);
               }}
+              title="Tạo phòng ban mới trong công ty này"
             >
-              + Dự án
+              + Phòng ban
             </button>
           </>
         )}
 
-        {item.type === "project" && (
-          <button
-            type="button"
-            style={linkBtnStyle}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAdd(item, "task");
-            }}
-          >
-            + Công việc
-          </button>
+        {/* Level 2: Phòng ban (chứa Folders & Công việc trực tiếp) */}
+        {item.type === "department" && (
+          <>
+            <button
+              type="button"
+              style={linkBtnStyle}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddFolder(item);
+              }}
+              title="Tạo folder trong phòng ban này"
+            >
+              + Folder
+            </button>
+            <button
+              type="button"
+              style={linkBtnStyle}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddTask(item);
+              }}
+              title="Thêm công việc trực tiếp vào phòng ban này"
+            >
+              + Công việc
+            </button>
+          </>
         )}
 
+        {/* Level 3: Folder (chứa Sub-folder & Công việc) */}
+        {item.type === "project" && (
+          <>
+            <button
+              type="button"
+              style={linkBtnStyle}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddFolder(item);
+              }}
+              title="Tạo folder con trong folder này"
+            >
+              + Folder con
+            </button>
+            <button
+              type="button"
+              style={linkBtnStyle}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddTask(item);
+              }}
+              title="Thêm công việc vào folder này"
+            >
+              + Công việc
+            </button>
+          </>
+        )}
+
+        {/* Level 4: Công việc (Task) */}
         {isTask && (
-          <input
-            type="checkbox"
-            checked={!!item.completed}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              e.stopPropagation();
-              handleToggleTask(item);
-            }}
-            style={{ width: 16, height: 16, cursor: "pointer" }}
-          />
+          <>
+            <button
+              type="button"
+              style={linkBtnStyle}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddTask(item);
+              }}
+              title="Thêm công việc con"
+            >
+              + Việc con
+            </button>
+            <input
+              type="checkbox"
+              checked={!!item.completed}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                handleToggleTask(item);
+              }}
+              style={{ width: 16, height: 16, cursor: "pointer", marginLeft: 4 }}
+              title={item.completed ? "Đánh dấu chưa hoàn thành" : "Đánh dấu hoàn thành"}
+            />
+          </>
         )}
 
         <button
@@ -409,21 +649,44 @@ export function AssignmentTree() {
     );
   }
 
+  const availableParents = data
+    .filter((n) => n.type === "company")
+    .map((c) => ({ id: c.id, name: c.name }));
+
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-gray-900">Quản lý Công ty / Dự án</h1>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--text)" }}>
+            Quản lý Công ty & Dự án
+          </h1>
+          <p style={{ fontSize: 13, color: "var(--muted)", margin: "3px 0 0 0" }}>
+            Cấu trúc phân cấp: Công ty → Phòng ban → Folder & Công việc
+          </p>
+        </div>
         <button
           type="button"
-          onClick={() => setModalOpen(true)}
-          className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-800 flex items-center gap-1.5 cursor-pointer"
+          onClick={() => handleOpenCreateCompany(null)}
+          className="btn btn-primary"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 16px",
+            borderRadius: 12,
+            fontSize: 13.5,
+            fontWeight: 600,
+            boxShadow: "0 2px 8px rgba(79, 110, 247, 0.25)",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
         >
-          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-          Tạo công ty
+          <span>Tạo công ty</span>
         </button>
       </div>
 
@@ -460,8 +723,23 @@ export function AssignmentTree() {
             height={620}
             rowHeight={38}
             indent={0}
-            disableDrag={(item) => item.type !== "task"}
-            disableDrop={({ parentNode }) => !parentNode?.data || parentNode.data.type !== "project"}
+            disableDrag={(item) => item.type !== "task" && item.type !== "project"}
+            disableDrop={({ parentNode, dragNodes }) => {
+              if (!parentNode?.data) return true; // Không cho thả tự do ra ngoài root
+              const parentType = parentNode.data.type;
+              const isDraggingProject = dragNodes.some((n) => n.data.type === "project");
+              const isDraggingTask = dragNodes.some((n) => n.data.type === "task");
+
+              // Folder chỉ được thả vào Phòng ban hoặc Folder khác
+              if (isDraggingProject) {
+                return parentType !== "department" && parentType !== "project";
+              }
+              // Task được thả vào Phòng ban, Folder hoặc Task khác (việc con)
+              if (isDraggingTask) {
+                return parentType !== "department" && parentType !== "project" && parentType !== "task";
+              }
+              return true;
+            }}
           >
             {Row}
           </Tree>
@@ -473,6 +751,8 @@ export function AssignmentTree() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onSuccess={handleCreateCompanySuccess}
+        parentCompany={modalParentCompany}
+        availableParents={availableParents}
       />
     </div>
   );

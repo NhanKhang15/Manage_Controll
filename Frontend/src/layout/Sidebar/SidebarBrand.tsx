@@ -15,7 +15,7 @@ export interface SidebarBrandProps {
 export function SidebarBrand({ collapsed, onToggleCollapse }: SidebarBrandProps) {
   return (
     <div className="brand">
-      {!collapsed && <VelaLogo />}
+      <VelaLogo iconOnly={collapsed} />
       <SidebarCollapseButton collapsed={collapsed} onClick={onToggleCollapse} />
     </div>
   );

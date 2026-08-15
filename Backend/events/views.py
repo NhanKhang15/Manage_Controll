@@ -111,12 +111,19 @@ def get_notifications(request):
     unread_only = request.query_params.get('unread_only')
     current_emp = get_employee_from_request(request)
 
+    try:
+        limit = min(int(request.query_params.get('limit', 50)), 100)
+    except ValueError:
+        limit = 50
+
     queryset = Notification.objects.all()
     if current_emp:
         queryset = queryset.filter(recipient=current_emp)
 
     if unread_only and unread_only.lower() in ('true', '1'):
         queryset = queryset.filter(is_read=False)
+
+    queryset = queryset.order_by('-created_at')[:limit]
 
     serializer = NotificationSerializer(queryset, many=True)
     return Response(serializer.data)

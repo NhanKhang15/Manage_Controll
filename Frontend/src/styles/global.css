@@ -49,7 +49,12 @@ code {
 .shell {
   display: grid;
   grid-template-columns: 264px 1fr;
-  min-height: 100vh
+  min-height: 100vh;
+  transition: grid-template-columns .2s
+}
+
+.shell.shell-collapsed {
+  grid-template-columns: 76px 1fr
 }
 
 .sidebar {
@@ -1595,8 +1600,27 @@ code {
   padding-right: 10px
 }
 
+.sidebar.collapsed .brand {
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px
+}
+
+.sidebar.collapsed .brand-collapse {
+  margin-left: 0
+}
+
+.sidebar.collapsed .nav {
+  overflow-x: hidden
+}
+
 .sidebar.collapsed .nav-item {
   justify-content: center
+}
+
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .nav-more-chev {
+  display: none
 }
 
 .sidebar.collapsed .search-ph,
@@ -3928,6 +3952,35 @@ code {
   padding: 12px 10px;
   border-bottom: 1px solid var(--line);
   box-shadow: 0 1px 0 var(--line)
+}
+
+.th-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer
+}
+
+.th-sort-btn:hover {
+  color: var(--text)
+}
+
+.th-sort-btn.active {
+  color: var(--brand)
+}
+
+.th-sort-arrow {
+  font-size: 9px;
+  min-width: 8px;
+  display: inline-block
 }
 
 .task-table td {

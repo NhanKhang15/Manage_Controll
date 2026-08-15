@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from employees.services import get_employee_from_request
 from integrations.ai_client import AIConfigError
 from meetings.models import MeetingTranscript
-from meetings.serializers import MeetingTranscriptSerializer
+from meetings.serializers import MeetingTranscriptSerializer, MeetingTranscriptListSerializer
 from meetings.services import create_or_update_transcript, summarize_transcript
 
 
@@ -37,12 +37,19 @@ def meeting_transcripts_view(request):
         )
 
     event_id = request.query_params.get('event_id')
+    try:
+        limit = min(int(request.query_params.get('limit', 50)), 100)
+    except ValueError:
+        limit = 50
+
     if event_id:
         queryset = MeetingTranscript.objects.filter(event_id=event_id)
     else:
         queryset = MeetingTranscript.objects.filter(created_by=current_emp)
 
-    return Response(MeetingTranscriptSerializer(queryset, many=True).data)
+    queryset = queryset.order_by('-created_at')[:limit]
+
+    return Response(MeetingTranscriptListSerializer(queryset, many=True).data)
 
 
 @api_view(['POST'])

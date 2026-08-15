@@ -1,7 +1,13 @@
 import { apiFetch } from "./client";
 import type { TreeNode } from "./companies";
 
-export async function createProject(data: { company_id: string; name: string; status?: string }): Promise<TreeNode> {
+export async function createProject(data: {
+  company_id?: string;
+  department_id?: string;
+  parent_id?: string;
+  name: string;
+  status?: string;
+}): Promise<TreeNode> {
   return apiFetch<TreeNode>("/projects/", {
     method: "POST",
     body: JSON.stringify(data),

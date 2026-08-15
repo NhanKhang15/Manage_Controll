@@ -23,6 +23,9 @@ export interface ProjectOption {
   status?: string;
 }
 
+export type TaskSortKey = "name" | "project" | "department" | "alert" | "progress" | "pic" | "due_date";
+export type TaskSortDir = "asc" | "desc";
+
 function daysOverdue(dueDateIso: string | null): number | null {
   if (!dueDateIso) return null;
   const due = new Date(dueDateIso);

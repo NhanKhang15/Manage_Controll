@@ -1,5 +1,6 @@
 import traceback
 from django.conf import settings
+from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -85,14 +86,50 @@ def delete_company(request, pk):
         return Response({'detail': 'Công ty không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 def get_departments(request):
+    if request.method == 'POST':
+        name = request.data.get('name')
+        company_id = request.data.get('company_id')
+        if not name or not name.strip():
+            return Response({'detail': 'Tên phòng ban không được để trống'}, status=status.HTTP_400_BAD_REQUEST)
+        if not company_id:
+            return Response({'detail': 'Công ty không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            company = Company.objects.get(id=company_id)
+        except Company.DoesNotExist:
+            return Response({'detail': 'Công ty không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+        department = Department.objects.create(company=company, name=name.strip())
+        res_data = {
+            'id': str(department.id),
+            'type': 'department',
+            'name': department.name,
+            'company_id': str(company.id),
+            'children': []
+        }
+        return Response(res_data, status=status.HTTP_201_CREATED)
+
     company_id = request.query_params.get('company_id')
-    from .models import Department
-    qs = Department.objects.all()
+    qs = Department.objects.annotate(
+        employee_count=Count('department_employees', filter=Q(department_employees__left_at__isnull=True), distinct=True)
+    )
     if company_id:
         qs = qs.filter(company_id=company_id)
-    qs = qs.order_by('order_index', 'name')
+
+    ordering = request.query_params.get('ordering', '').strip()
+    ORDER_MAP = {
+        'name_asc': 'name',
+        'name_desc': '-name',
+        'order_index_asc': 'order_index',
+        'order_index_desc': '-order_index',
+        'created_at_asc': 'created_at',
+        'created_at_desc': '-created_at',
+        'employee_count_asc': 'employee_count',
+        'employee_count_desc': '-employee_count',
+    }
+    order_field = ORDER_MAP.get(ordering)
+    qs = qs.order_by(order_field, 'name') if order_field else qs.order_by('order_index', 'name')
 
     data = [
         {
@@ -100,7 +137,18 @@ def get_departments(request):
             'name': d.name,
             'company_id': str(d.company_id),
             'order_index': d.order_index,
+            'employee_count': d.employee_count,
         }
         for d in qs
     ]
     return Response(data)
+
+
+@api_view(['DELETE'])
+def delete_department(request, pk):
+    try:
+        dept = Department.objects.get(id=pk)
+        dept.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    except Department.DoesNotExist:
+        return Response({'detail': 'Phòng ban không tồn tại'}, status=status.HTTP_404_NOT_FOUND)

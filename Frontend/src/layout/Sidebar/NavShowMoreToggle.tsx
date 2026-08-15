@@ -13,7 +13,7 @@ export interface NavShowMoreToggleProps {
 
 export function NavShowMoreToggle({ expanded, onToggle }: NavShowMoreToggleProps) {
   return (
-    <button type="button" className="nav-item nav-more-toggle" onClick={onToggle}>
+    <button type="button" className="nav-item nav-more-toggle" title="Xem thêm" onClick={onToggle}>
       <Icon name="nav-more" />
       <span className="nav-label">Xem thêm</span>
       <span className={`nav-more-chev${expanded ? " open" : ""}`}>▾</span>

@@ -7,9 +7,10 @@
 export interface VelaLogoProps {
   iconHeight?: number;
   fontSize?: number;
+  iconOnly?: boolean;
 }
 
-export function VelaLogo({ iconHeight = 28, fontSize = 24 }: VelaLogoProps) {
+export function VelaLogo({ iconHeight = 28, fontSize = 24, iconOnly = false }: VelaLogoProps) {
   return (
     <span className="vam-logo" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
       <svg className="vam-ico" height={iconHeight} viewBox="0 0 124 112" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -40,32 +41,34 @@ export function VelaLogo({ iconHeight = 28, fontSize = 24 }: VelaLogoProps) {
           strokeLinejoin="round"
         />
       </svg>
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "baseline",
-          fontWeight: 800,
-          fontSize,
-          letterSpacing: "-.02em",
-          lineHeight: 1,
-          fontFamily: "inherit",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <span style={{ color: "#12245B" }}>Vela</span>
+      {!iconOnly && (
         <span
           style={{
-            marginLeft: ".28em",
-            background: "linear-gradient(90deg,#2E6BE6,#22C7E8)",
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            color: "transparent",
+            display: "inline-flex",
+            alignItems: "baseline",
+            fontWeight: 800,
+            fontSize,
+            letterSpacing: "-.02em",
+            lineHeight: 1,
+            fontFamily: "inherit",
+            whiteSpace: "nowrap",
           }}
         >
-          AI
+          <span style={{ color: "#12245B" }}>Vela</span>
+          <span
+            style={{
+              marginLeft: ".28em",
+              background: "linear-gradient(90deg,#2E6BE6,#22C7E8)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              color: "transparent",
+            }}
+          >
+            AI
+          </span>
         </span>
-      </span>
+      )}
     </span>
   );
 }

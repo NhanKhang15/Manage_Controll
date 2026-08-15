@@ -17,8 +17,11 @@ export interface NotificationItem {
   created_at: string;
 }
 
-export async function getNotifications(unreadOnly = false): Promise<NotificationItem[]> {
-  const query = unreadOnly ? "?unread_only=true" : "";
+export async function getNotifications(unreadOnly = false, limit = 20): Promise<NotificationItem[]> {
+  const params = new URLSearchParams();
+  if (unreadOnly) params.append("unread_only", "true");
+  if (limit) params.append("limit", String(limit));
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiFetch<NotificationItem[]>(`/notifications/${query}`);
 }
 

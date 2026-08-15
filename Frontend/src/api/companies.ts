@@ -1,6 +1,6 @@
 import { apiFetch } from "./client";
 
-export type NodeType = "company" | "project" | "task";
+export type NodeType = "company" | "department" | "project" | "task";
 
 export interface TaskAssigneeRef {
   id: string;
@@ -26,6 +26,7 @@ export interface TreeNode {
   due_date?: string | null;
   assignees?: TaskAssigneeRef[];
   department?: string | null;
+  department_id?: string | null;
   pic?: PicRef | null;
   is_milestone?: boolean;
   effort_points?: number | null;
@@ -58,4 +59,31 @@ export async function deleteCompany(id: string): Promise<void> {
   return apiFetch<void>(`/companies/${id}/`, {
     method: "DELETE",
   });
+}
+
+export async function createDepartment(data: { company_id: string; name: string }): Promise<TreeNode> {
+  return apiFetch<TreeNode>("/departments/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteDepartment(id: string): Promise<void> {
+  return apiFetch<void>(`/departments/${id}/`, {
+    method: "DELETE",
+  });
+}
+
+export interface DepartmentOption {
+  id: string;
+  name: string;
+  company_id: string;
+  order_index: number;
+  employee_count: number;
+}
+
+export async function getDepartments(companyId?: string): Promise<DepartmentOption[]> {
+  const query = new URLSearchParams({ ordering: "name_asc" });
+  if (companyId) query.append("company_id", companyId);
+  return apiFetch<DepartmentOption[]>(`/departments/?${query.toString()}`);
 }

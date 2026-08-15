@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppShellPage } from "../layout/AppShellPage";
 import { Panel } from "../components/ui/Panel";
@@ -12,10 +12,18 @@ import { TaskTable } from "../features/tasks/TaskTable";
 import { ProposalApprovalList } from "../features/proposals/ProposalApprovalList";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../auth/AuthContext";
-import { getCompaniesTree } from "../api/companies";
-import { createTask, updateTask, getMyTasks, getDepartmentTasks } from "../api/tasks";
+import { useDebounce } from "../hooks/useDebounce";
+import { getCompaniesTree, getDepartments, type DepartmentOption } from "../api/companies";
+import { createTask, updateTask, getTasksList } from "../api/tasks";
 import { listProposals, decideProposal, type Proposal } from "../api/proposals";
-import { flattenTasks, flattenProjects, fromFlatTask, type TaskItem, type ProjectOption } from "../features/tasks/types";
+import {
+  flattenProjects,
+  fromFlatTask,
+  type TaskItem,
+  type ProjectOption,
+  type TaskSortKey,
+  type TaskSortDir,
+} from "../features/tasks/types";
 
 export function TasksPage() {
   const { employee } = useAuth();
@@ -23,72 +31,137 @@ export function TasksPage() {
   const canApproveProposals = employee?.companies?.[0]?.can_approve_proposals ?? false;
   const { showToast } = useToast();
 
-  const [allTasks, setAllTasks] = useState<TaskItem[]>([]);
-  const [myTasks, setMyTasks] = useState<TaskItem[]>([]);
-  const [deptTasks, setDeptTasks] = useState<TaskItem[]>([]);
-  const [deptLoaded, setDeptLoaded] = useState(false);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [totalTasks, setTotalTasks] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const LIMIT = 10;
+
+  const [checklistTasks, setChecklistTasks] = useState<TaskItem[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [groupLoading, setGroupLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const observerTargetRef = useRef<HTMLDivElement | null>(null);
 
   const [searchParams] = useSearchParams();
   const [topTab, setTopTab] = useState<TaskTopTab>(searchParams.get("tab") === "approvals" ? "approvals" : "tasks");
   const [group, setGroup] = useState<TaskGroup>("all");
   const [flagFilter, setFlagFilter] = useState<TaskFlagFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 300);
+  const [sortKey, setSortKey] = useState<TaskSortKey>("due_date");
+  const [sortDir, setSortDir] = useState<TaskSortDir>("asc");
+  const ordering = `${sortKey}_${sortDir}`;
   const [projectFilter, setProjectFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
 
   const [pendingProposals, setPendingProposals] = useState<Proposal[]>([]);
 
+  // Tải danh sách dự án, phòng ban & đề xuất chờ duyệt 1 lần ban đầu
   useEffect(() => {
     if (!companyId) return;
-    let isMounted = true;
-    Promise.all([getCompaniesTree(companyId), getMyTasks(companyId), listProposals(companyId, "pending")])
-      .then(([tree, mine, proposals]) => {
-        if (!isMounted) return;
-        setAllTasks(flattenTasks(tree));
+    Promise.all([
+      getCompaniesTree(companyId),
+      getDepartments(companyId),
+      listProposals(companyId, "pending"),
+      getTasksList("mine", { company_id: companyId, limit: 6, status: "Cần làm" }),
+    ])
+      .then(([tree, depts, proposals, mineRes]) => {
         setProjects(flattenProjects(tree));
-        setMyTasks(mine.map(fromFlatTask));
+        setDepartments(depts);
         setPendingProposals(proposals);
+        setChecklistTasks(mineRes.results.map(fromFlatTask));
       })
-      .catch(() => showToast("Không tải được danh sách công việc", "danger"))
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
-    return () => {
-      isMounted = false;
-    };
+      .catch(() => showToast("Không tải được thông tin dự án", "danger"));
   }, [companyId, showToast]);
 
-  useEffect(() => {
-    if (!companyId || group !== "dept" || deptLoaded) return;
-    setGroupLoading(true);
-    getDepartmentTasks(companyId)
-      .then((rows) => {
-        setDeptTasks(rows.map(fromFlatTask));
-        setDeptLoaded(true);
-      })
-      .catch(() => showToast("Không tải được công việc của phòng ban", "danger"))
-      .finally(() => setGroupLoading(false));
-  }, [companyId, group, deptLoaded, showToast]);
+  // Hàm fetch danh sách công việc chính với Phân trang (Limit & Offset)
+  const fetchTasks = useCallback(
+    async (targetOffset: number, isAppend: boolean) => {
+      if (!companyId) return;
+      if (isAppend) setLoadingMore(true);
+      else setLoading(true);
 
-  const groupTasks = group === "all" ? allTasks : group === "mine" ? myTasks : deptTasks;
+      const endpoint = group === "all" ? "all" : group === "mine" ? "mine" : "department";
+      try {
+        const res = await getTasksList(endpoint, {
+          company_id: companyId,
+          search: debouncedSearch,
+          ordering: ordering,
+          project_id: projectFilter || undefined,
+          department_id: departmentFilter || undefined,
+          limit: LIMIT,
+          offset: targetOffset,
+        });
+
+        const newItems = res.results.map(fromFlatTask);
+        if (isAppend) {
+          setTasks((prev) => [...prev, ...newItems]);
+        } else {
+          setTasks(newItems);
+        }
+
+        setTotalTasks(res.total);
+        setHasMore(res.has_more);
+        setOffset(targetOffset);
+      } catch {
+        showToast("Không tải được danh sách công việc", "danger");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [companyId, group, debouncedSearch, ordering, projectFilter, departmentFilter, showToast]
+  );
+
+  // Khi thay đổi bất kỳ bộ lọc nào (Group, Status, Sắp xếp, Search, Dự án) -> Reset offset về 0 và load mới 10 cái
+  useEffect(() => {
+    fetchTasks(0, false);
+  }, [fetchTasks]);
+
+  // Load thêm 10 task tiếp theo khi cuộn/bấm Load More
+  const handleLoadMore = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    fetchTasks(offset + LIMIT, true);
+  }, [fetchTasks, loadingMore, hasMore, offset]);
+
+  // Tự động kích hoạt tải thêm khi cuộn xuống gần cuối trang (IntersectionObserver)
+  useEffect(() => {
+    const target = observerTargetRef.current;
+    if (!target || !hasMore || loadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: "150px" }
+    );
+
+    observer.observe(target);
+    return () => {
+      observer.unobserve(target);
+    };
+  }, [hasMore, loadingMore, handleLoadMore]);
 
   const filteredTasks = useMemo(() => {
-    return groupTasks.filter((t) => {
-      const matchesSearch = !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesProject = !projectFilter || t.projectId === projectFilter;
+    return tasks.filter((t) => {
       const matchesFlag = flagFilter !== "overdue" || !!t.overdueDays;
-      return matchesSearch && matchesProject && matchesFlag;
+      return matchesFlag;
     });
-  }, [groupTasks, searchQuery, projectFilter, flagFilter]);
+  }, [tasks, flagFilter]);
 
-  const checklistTasks = useMemo(() => {
-    return myTasks
-      .filter((t) => !t.completed)
-      .sort((a, b) => (a.dueDateIso ?? "9999").localeCompare(b.dueDateIso ?? "9999"))
-      .slice(0, 6);
-  }, [myTasks]);
+  function handleSort(key: TaskSortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
 
   function handleSelectChip(chip: TaskFlagFilter) {
     if (chip === "all" || chip === "overdue") {
@@ -99,17 +172,10 @@ export function TasksPage() {
     showToast(`Lọc theo "${label}" đang được phát triển`, "default");
   }
 
-  const patchTaskEverywhere = useCallback((taskId: string, patch: Partial<TaskItem>) => {
-    const apply = (list: TaskItem[]) => list.map((t) => (t.id === taskId ? { ...t, ...patch } : t));
-    setAllTasks(apply);
-    setMyTasks(apply);
-    setDeptTasks(apply);
-  }, []);
-
   function handleToggleChecklist(task: TaskItem) {
-    patchTaskEverywhere(task.id, { completed: true });
+    setChecklistTasks((prev) => prev.filter((t) => t.id !== task.id));
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed: true } : t)));
     updateTask(task.id, { is_completed: true, status: "Hoàn thành" }).catch(() => {
-      patchTaskEverywhere(task.id, { completed: false });
       showToast("Cập nhật công việc thất bại", "danger");
     });
   }
@@ -117,13 +183,8 @@ export function TasksPage() {
   async function handleCreateTask(name: string, projectId: string) {
     try {
       await createTask({ project_id: projectId, name });
-      const project = projects.find((p) => p.id === projectId) ?? null;
-      const nextTree = await getCompaniesTree(companyId || undefined);
-      setAllTasks(flattenTasks(nextTree));
-      showToast(
-        project ? `Đã thêm "${name}" vào ${project.name}. Gợi ý subtask AI sẽ có ở bản cập nhật sau.` : "Đã tạo công việc",
-        "success"
-      );
+      fetchTasks(0, false);
+      showToast("Đã tạo công việc thành công", "success");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Không tạo được công việc", "danger");
     }
@@ -157,11 +218,7 @@ export function TasksPage() {
     <AppShellPage initialNavId="tasks">
       <TaskHeader activeTab={topTab} onChangeTab={setTopTab} pendingApprovalsCount={pendingProposals.length} />
 
-      {loading ? (
-        <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontSize: 14 }}>
-          Đang tải dữ liệu từ máy chủ...
-        </div>
-      ) : topTab === "approvals" ? (
+      {topTab === "approvals" ? (
         <Panel title={`Đề xuất chờ duyệt (${pendingProposals.length})`}>
           <ProposalApprovalList
             proposals={pendingProposals}
@@ -188,22 +245,46 @@ export function TasksPage() {
             projects={projects}
             projectFilter={projectFilter}
             onProjectFilterChange={setProjectFilter}
+            departments={departments}
+            departmentFilter={departmentFilter}
+            onDepartmentFilterChange={setDepartmentFilter}
           />
 
           <TaskFilterChips active={flagFilter} onSelect={handleSelectChip} />
 
-          {groupLoading ? (
+          {loading ? (
             <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontSize: 14 }}>
               Đang tải dữ liệu từ máy chủ...
             </div>
           ) : (
-            <TaskTable
-              tasks={filteredTasks}
-              onSelectTask={(task) => showToast(`Xem "${task.title}" trong trang Dự án → Phân công`, "default")}
-              onFlag={() => showToast("Gắn cờ công việc đang được phát triển", "default")}
-              onProblem={() => showToast('Đánh dấu "Có vấn đề" đang được phát triển', "default")}
-              onAutomate={() => showToast("Tự động hoá bằng AI đang được phát triển", "default")}
-            />
+            <>
+              <TaskTable
+                tasks={filteredTasks}
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                onSelectTask={(task) => showToast(`Xem "${task.title}" trong trang Dự án → Phân công`, "default")}
+                onFlag={() => showToast("Gắn cờ công việc đang được phát triển", "default")}
+                onProblem={() => showToast('Đánh dấu "Có vấn đề" đang được phát triển', "default")}
+                onAutomate={() => showToast("Tự động hoá bằng AI đang được phát triển", "default")}
+              />
+
+              <div ref={observerTargetRef} style={{ height: 20, margin: "10px 0" }} />
+
+              {hasMore && (
+                <div style={{ textAlign: "center", margin: "10px 0 30px 0" }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    style={{ padding: "10px 24px", borderRadius: 10, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    {loadingMore ? "Đang tự động tải thêm..." : `Tải thêm 10 công việc (Đã hiện ${tasks.length}/${totalTasks})`}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

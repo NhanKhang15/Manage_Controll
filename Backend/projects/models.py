@@ -11,6 +11,22 @@ class Project(models.Model):
         related_name='projects',
         db_column='company_id'
     )
+    department = models.ForeignKey(
+        'companies.Department',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='projects',
+        db_column='department_id'
+    )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+        db_column='parent_id'
+    )
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=50, null=True, blank=True)
     drive_folder_id = models.CharField(max_length=255, null=True, blank=True)

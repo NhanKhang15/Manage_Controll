@@ -11,6 +11,7 @@ export interface FlatTask {
   project: { id: string; name: string };
   assignees: TaskAssigneeRef[];
   department: string | null;
+  department_id: string | null;
   pic: PicRef | null;
   is_milestone: boolean;
   effort_points: number | null;
@@ -23,6 +24,7 @@ export interface CreateTaskData {
   parent_id?: string;
   name: string;
   pic_id?: string | null;
+  department_id?: string | null;
   is_milestone?: boolean;
   effort_points?: number | null;
   notes?: string;
@@ -33,6 +35,7 @@ export interface UpdateTaskData {
   status?: string;
   is_completed?: boolean;
   pic_id?: string | null;
+  department_id?: string | null;
   is_milestone?: boolean;
   effort_points?: number | null;
   notes?: string;
@@ -40,12 +43,50 @@ export interface UpdateTaskData {
   parent_id?: string | null;
 }
 
+export interface TaskQueryParams {
+  company_id: string;
+  status?: string;
+  search?: string;
+  ordering?: string;
+  limit?: number;
+  offset?: number;
+  project_id?: string;
+  department_id?: string;
+}
+
+export interface PaginatedTasksResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+  results: FlatTask[];
+}
+
+export async function getTasksList(
+  endpoint: "all" | "mine" | "department",
+  params: TaskQueryParams
+): Promise<PaginatedTasksResponse> {
+  const query = new URLSearchParams();
+  query.append("company_id", params.company_id);
+  if (params.status && params.status !== "all") query.append("status", params.status);
+  if (params.search) query.append("search", params.search);
+  if (params.ordering) query.append("ordering", params.ordering);
+  if (params.project_id) query.append("project_id", params.project_id);
+  if (params.department_id) query.append("department_id", params.department_id);
+  query.append("limit", String(params.limit ?? 10));
+  query.append("offset", String(params.offset ?? 0));
+
+  return apiFetch<PaginatedTasksResponse>(`/tasks/${endpoint}/?${query.toString()}`);
+}
+
 export async function getMyTasks(companyId: string): Promise<FlatTask[]> {
-  return apiFetch<FlatTask[]>(`/tasks/mine/?company_id=${companyId}`);
+  const res = await getTasksList("mine", { company_id: companyId, limit: 100 });
+  return res.results;
 }
 
 export async function getDepartmentTasks(companyId: string): Promise<FlatTask[]> {
-  return apiFetch<FlatTask[]>(`/tasks/department/?company_id=${companyId}`);
+  const res = await getTasksList("department", { company_id: companyId, limit: 100 });
+  return res.results;
 }
 
 export async function createTask(data: CreateTaskData): Promise<TreeNode> {
