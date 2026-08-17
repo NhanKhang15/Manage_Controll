@@ -61,6 +61,9 @@ class Task(models.Model):
         help_text='Phòng ban phụ trách — gán trực tiếp, không còn suy ra qua người được gán việc'
     )
     is_milestone = models.BooleanField(default=False)
+    is_flagged = models.BooleanField(default=False)
+    is_problem = models.BooleanField(default=False)
+    can_automate = models.BooleanField(default=False)
     effort_points = models.IntegerField(null=True, blank=True, choices=EFFORT_CHOICES)
     notes = models.TextField(blank=True, default='')
     drive_file_id = models.CharField(max_length=255, null=True, blank=True)

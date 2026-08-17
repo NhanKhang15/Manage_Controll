@@ -15,6 +15,9 @@ export interface TaskItem {
   overdueDays: number | null;
   assigneeName: string | null;
   department: string | null;
+  isFlagged: boolean;
+  isProblem: boolean;
+  canAutomate: boolean;
 }
 
 export interface ProjectOption {
@@ -61,6 +64,9 @@ export function flattenTasks(nodes: TreeNode[], project: ProjectOption | null = 
         overdueDays: daysOverdue(node.due_date ?? null),
         assigneeName: primaryAssigneeName(node.assignees),
         department: node.department ?? null,
+        isFlagged: !!node.is_flagged,
+        isProblem: !!node.is_problem,
+        canAutomate: !!node.can_automate,
       });
     } else if (node.children) {
       const nextProject = node.type === "project" ? { id: node.id, name: node.name } : project;
@@ -85,6 +91,9 @@ export function fromFlatTask(t: FlatTask): TaskItem {
     overdueDays: daysOverdue(t.due_date),
     assigneeName: primaryAssigneeName(t.assignees),
     department: t.department,
+    isFlagged: !!t.is_flagged,
+    isProblem: !!t.is_problem,
+    canAutomate: !!t.can_automate,
   };
 }
 

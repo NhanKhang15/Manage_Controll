@@ -4170,9 +4170,23 @@ code {
   background: #FEF2F2
 }
 
+.t-flagbtn.active-flag {
+  opacity: 1;
+  border-color: #EF4444;
+  background: #FEE2E2;
+  box-shadow: 0 0 0 1px #EF4444;
+}
+
 .t-flagbtn.prob:hover {
   border-color: #FBBF24;
   background: #FFFBEB
+}
+
+.t-flagbtn.prob.active-prob {
+  opacity: 1;
+  border-color: #F59E0B;
+  background: #FEF3C7;
+  box-shadow: 0 0 0 1px #F59E0B;
 }
 
 .t-autobtn {
@@ -4194,6 +4208,13 @@ code {
   background: #7E22CE;
   color: #fff;
   border-color: #7E22CE
+}
+
+.t-autobtn.active-auto {
+  background: #7E22CE;
+  color: #fff;
+  border-color: #6B21A8;
+  box-shadow: 0 0 0 1px #6B21A8;
 }
 
 .chk-row {

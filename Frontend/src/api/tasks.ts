@@ -14,6 +14,9 @@ export interface FlatTask {
   department_id: string | null;
   pic: PicRef | null;
   is_milestone: boolean;
+  is_flagged?: boolean;
+  is_problem?: boolean;
+  can_automate?: boolean;
   effort_points: number | null;
   notes: string;
   parent: string | null;
@@ -26,6 +29,9 @@ export interface CreateTaskData {
   pic_id?: string | null;
   department_id?: string | null;
   is_milestone?: boolean;
+  is_flagged?: boolean;
+  is_problem?: boolean;
+  can_automate?: boolean;
   effort_points?: number | null;
   notes?: string;
 }
@@ -37,6 +43,9 @@ export interface UpdateTaskData {
   pic_id?: string | null;
   department_id?: string | null;
   is_milestone?: boolean;
+  is_flagged?: boolean;
+  is_problem?: boolean;
+  can_automate?: boolean;
   effort_points?: number | null;
   notes?: string;
   due_date?: string | null;
@@ -52,6 +61,7 @@ export interface TaskQueryParams {
   offset?: number;
   project_id?: string;
   department_id?: string;
+  flag_filter?: string;
 }
 
 export interface PaginatedTasksResponse {
@@ -73,6 +83,7 @@ export async function getTasksList(
   if (params.ordering) query.append("ordering", params.ordering);
   if (params.project_id) query.append("project_id", params.project_id);
   if (params.department_id) query.append("department_id", params.department_id);
+  if (params.flag_filter && params.flag_filter !== "all") query.append("flag_filter", params.flag_filter);
   query.append("limit", String(params.limit ?? 10));
   query.append("offset", String(params.offset ?? 0));
 

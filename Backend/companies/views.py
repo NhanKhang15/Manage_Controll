@@ -4,7 +4,7 @@ from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Company
+from .models import Company, Department
 from .serializers import CompanyTreeSerializer
 from integrations.google_drive import create_drive_folder
 

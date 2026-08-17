@@ -92,6 +92,7 @@ export function TasksPage() {
           ordering: ordering,
           project_id: projectFilter || undefined,
           department_id: departmentFilter || undefined,
+          flag_filter: flagFilter !== "all" ? flagFilter : undefined,
           limit: LIMIT,
           offset: targetOffset,
         });
@@ -113,10 +114,10 @@ export function TasksPage() {
         setLoadingMore(false);
       }
     },
-    [companyId, group, debouncedSearch, ordering, projectFilter, departmentFilter, showToast]
+    [companyId, group, debouncedSearch, ordering, projectFilter, departmentFilter, flagFilter, showToast]
   );
 
-  // Khi thay đổi bất kỳ bộ lọc nào (Group, Status, Sắp xếp, Search, Dự án) -> Reset offset về 0 và load mới 10 cái
+  // Khi thay đổi bất kỳ bộ lọc nào (Group, Status, Sắp xếp, Search, Dự án, Cờ/Vấn đề/Trễ hạn) -> Reset offset về 0 và load mới 10 cái
   useEffect(() => {
     fetchTasks(0, false);
   }, [fetchTasks]);
@@ -149,8 +150,11 @@ export function TasksPage() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      const matchesFlag = flagFilter !== "overdue" || !!t.overdueDays;
-      return matchesFlag;
+      if (flagFilter === "flag") return t.isFlagged;
+      if (flagFilter === "problem") return t.isProblem;
+      if (flagFilter === "overdue") return !!t.overdueDays;
+      if (flagFilter === "auto") return t.canAutomate;
+      return true;
     });
   }, [tasks, flagFilter]);
 
@@ -164,12 +168,7 @@ export function TasksPage() {
   }
 
   function handleSelectChip(chip: TaskFlagFilter) {
-    if (chip === "all" || chip === "overdue") {
-      setFlagFilter(chip);
-      return;
-    }
-    const label = chip === "flag" ? "Gắn cờ" : chip === "problem" ? "Có vấn đề" : "AI tự động hoá được";
-    showToast(`Lọc theo "${label}" đang được phát triển`, "default");
+    setFlagFilter(chip);
   }
 
   function handleToggleChecklist(task: TaskItem) {
@@ -178,6 +177,49 @@ export function TasksPage() {
     updateTask(task.id, { is_completed: true, status: "Hoàn thành" }).catch(() => {
       showToast("Cập nhật công việc thất bại", "danger");
     });
+  }
+
+  function handleToggleFlag(task: TaskItem) {
+    const nextVal = !task.isFlagged;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isFlagged: nextVal } : t)));
+    setChecklistTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isFlagged: nextVal } : t)));
+    updateTask(task.id, { is_flagged: nextVal })
+      .then(() => {
+        showToast(nextVal ? `Đã gắn cờ "${task.title}"` : `Đã bỏ gắn cờ "${task.title}"`, "success");
+      })
+      .catch(() => {
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isFlagged: !nextVal } : t)));
+        setChecklistTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isFlagged: !nextVal } : t)));
+        showToast("Cập nhật cờ thất bại", "danger");
+      });
+  }
+
+  function handleToggleProblem(task: TaskItem) {
+    const nextVal = !task.isProblem;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isProblem: nextVal } : t)));
+    setChecklistTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isProblem: nextVal } : t)));
+    updateTask(task.id, { is_problem: nextVal })
+      .then(() => {
+        showToast(nextVal ? `Đã đánh dấu có vấn đề cho "${task.title}"` : `Đã gỡ đánh dấu vấn đề "${task.title}"`, "default");
+      })
+      .catch(() => {
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isProblem: !nextVal } : t)));
+        setChecklistTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isProblem: !nextVal } : t)));
+        showToast("Cập nhật trạng thái có vấn đề thất bại", "danger");
+      });
+  }
+
+  function handleToggleAutomate(task: TaskItem) {
+    const nextVal = !task.canAutomate;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, canAutomate: nextVal } : t)));
+    updateTask(task.id, { can_automate: nextVal })
+      .then(() => {
+        showToast(nextVal ? `Đã bật tự động hoá AI cho "${task.title}"` : `Đã tắt tự động hoá AI cho "${task.title}"`, "success");
+      })
+      .catch(() => {
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, canAutomate: !nextVal } : t)));
+        showToast("Cập nhật tự động hoá thất bại", "danger");
+      });
   }
 
   async function handleCreateTask(name: string, projectId: string) {
@@ -234,7 +276,7 @@ export function TasksPage() {
           <TaskChecklist
             tasks={checklistTasks}
             onToggle={handleToggleChecklist}
-            onFlagProblem={() => showToast('Đánh dấu "Có vấn đề" đang được phát triển', "default")}
+            onFlagProblem={handleToggleProblem}
           />
 
           <QuickAddTask projects={projects} onCreate={handleCreateTask} />
@@ -264,9 +306,9 @@ export function TasksPage() {
                 sortDir={sortDir}
                 onSort={handleSort}
                 onSelectTask={(task) => showToast(`Xem "${task.title}" trong trang Dự án → Phân công`, "default")}
-                onFlag={() => showToast("Gắn cờ công việc đang được phát triển", "default")}
-                onProblem={() => showToast('Đánh dấu "Có vấn đề" đang được phát triển', "default")}
-                onAutomate={() => showToast("Tự động hoá bằng AI đang được phát triển", "default")}
+                onFlag={handleToggleFlag}
+                onProblem={handleToggleProblem}
+                onAutomate={handleToggleAutomate}
               />
 
               <div ref={observerTargetRef} style={{ height: 20, margin: "10px 0" }} />

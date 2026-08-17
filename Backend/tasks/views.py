@@ -41,6 +41,17 @@ def _build_paginated_task_response(qs, request):
         # assignments), nên lọc thẳng, không cần join/distinct nữa.
         qs = qs.filter(department_id=department_id)
 
+    flag_filter = request.query_params.get('flag_filter', '').strip().lower()
+    if flag_filter == 'flag':
+        qs = qs.filter(is_flagged=True)
+    elif flag_filter == 'problem':
+        qs = qs.filter(is_problem=True)
+    elif flag_filter == 'overdue':
+        today = timezone.now().date()
+        qs = qs.filter(due_date__lt=today, is_completed=False)
+    elif flag_filter == 'auto':
+        qs = qs.filter(can_automate=True)
+
     ordering = request.query_params.get('ordering', '').strip()
     ORDER_MAP = {
         'due_date': F('due_date').asc(nulls_last=True),
@@ -217,6 +228,9 @@ def create_task(request):
         pic=pic,
         department=department,
         is_milestone=bool(request.data.get('is_milestone', False)),
+        is_flagged=bool(request.data.get('is_flagged', False)),
+        is_problem=bool(request.data.get('is_problem', False)),
+        can_automate=bool(request.data.get('can_automate', False)),
         effort_points=request.data.get('effort_points') or None,
         notes=(request.data.get('notes') or '').strip(),
         drive_file_id=drive_file_id,
@@ -289,6 +303,15 @@ def task_detail(request, pk):
 
     if 'is_milestone' in data:
         task.is_milestone = bool(data['is_milestone'])
+
+    if 'is_flagged' in data:
+        task.is_flagged = bool(data['is_flagged'])
+
+    if 'is_problem' in data:
+        task.is_problem = bool(data['is_problem'])
+
+    if 'can_automate' in data:
+        task.can_automate = bool(data['can_automate'])
 
     if 'effort_points' in data:
         task.effort_points = data['effort_points'] or None

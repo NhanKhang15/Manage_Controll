@@ -29,6 +29,9 @@ export interface TreeNode {
   department_id?: string | null;
   pic?: PicRef | null;
   is_milestone?: boolean;
+  is_flagged?: boolean;
+  is_problem?: boolean;
+  can_automate?: boolean;
   effort_points?: number | null;
   notes?: string;
   parent?: string | null;

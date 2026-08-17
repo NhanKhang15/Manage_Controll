@@ -65,6 +65,7 @@ class TaskTreeSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'type', 'name', 'status', 'completed', 'completed_at', 'due_date',
             'order_index', 'assignees', 'department', 'department_id', 'pic', 'is_milestone',
+            'is_flagged', 'is_problem', 'can_automate',
             'effort_points', 'notes', 'parent', 'children', 'childCount', 'progress_percent',
             'drive_file_id', 'drive_file_url', 'created_at',
         ]
@@ -107,7 +108,9 @@ class TaskFlatSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'name', 'status', 'completed', 'completed_at', 'due_date', 'project',
-            'assignees', 'department', 'department_id', 'pic', 'is_milestone', 'effort_points', 'notes', 'parent',
+            'assignees', 'department', 'department_id', 'pic', 'is_milestone',
+            'is_flagged', 'is_problem', 'can_automate',
+            'effort_points', 'notes', 'parent',
             'drive_file_id', 'drive_file_url',
         ]
 

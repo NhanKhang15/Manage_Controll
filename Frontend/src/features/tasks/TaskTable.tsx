@@ -39,8 +39,10 @@ function SortableTh({
 }
 
 function AlertTag({ task }: { task: TaskItem }) {
+  if (task.isProblem) return <span className="alert-tag alert-danger" style={{ background: "#FEF2F2", color: "#EF4444" }}>⚠️ Có vấn đề</span>;
   if (task.completed) return <span className="alert-tag alert-ok">✓ Hoàn tất</span>;
   if (task.overdueDays) return <span className="alert-tag alert-danger">🔴 Trễ hạn</span>;
+  if (task.isFlagged) return <span className="alert-tag alert-warning" style={{ background: "#FFFBEB", color: "#D97706" }}>🚩 Gắn cờ</span>;
   return <span className="alert-tag alert-muted">—</span>;
 }
 
@@ -125,24 +127,29 @@ export function TaskTable({ tasks, sortKey, sortDir, onSort, onSelectTask, onFla
                 <DueCell task={task} />
               </td>
               <td className="t-actions" onClick={(e) => e.stopPropagation()}>
-                <button type="button" className="t-flagbtn" title="Gắn cờ để xử lý" onClick={() => onFlag?.(task)}>
+                <button
+                  type="button"
+                  className={`t-flagbtn${task.isFlagged ? " active-flag" : ""}`}
+                  title={task.isFlagged ? "Gỡ gắn cờ" : "Gắn cờ để xử lý"}
+                  onClick={() => onFlag?.(task)}
+                >
                   🚩
                 </button>
                 <button
                   type="button"
-                  className="t-flagbtn prob"
-                  title="Đánh dấu đang có vấn đề"
+                  className={`t-flagbtn prob${task.isProblem ? " active-prob" : ""}`}
+                  title={task.isProblem ? "Gỡ đánh dấu vấn đề" : "Đánh dấu đang có vấn đề"}
                   onClick={() => onProblem?.(task)}
                 >
                   ⚠️
                 </button>
                 <button
                   type="button"
-                  className="t-autobtn"
+                  className={`t-autobtn${task.canAutomate ? " active-auto" : ""}`}
                   title="Việc đơn giản/định kỳ — bấm để AI tạo luồng tự động"
                   onClick={() => onAutomate?.(task)}
                 >
-                  🤖 Tự động hoá
+                  🤖 {task.canAutomate ? "Đã bật tự động" : "Tự động hoá"}
                 </button>
               </td>
             </tr>
