@@ -14,8 +14,8 @@ class DepartmentTreeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Department
         fields = [
-            'id', 'type', 'name', 'company_id', 'order_index',
-            'childCount', 'children', 'progress_percent',
+            'id', 'type', 'name', 'company_id', 'drive_folder_id', 'drive_folder_url',
+            'order_index', 'childCount', 'children', 'progress_percent',
         ]
 
     def _top_projects(self, obj):

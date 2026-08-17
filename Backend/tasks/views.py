@@ -176,6 +176,38 @@ def create_task(request):
         except Employee.DoesNotExist:
             return Response({'detail': 'Người phụ trách không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
 
+    drive_file_id = None
+    drive_file_url = None
+    parent_drive_folder_id = None
+    if project and project.drive_folder_id:
+        parent_drive_folder_id = project.drive_folder_id
+    elif department and department.drive_folder_id:
+        parent_drive_folder_id = department.drive_folder_id
+    elif project and project.company and project.company.drive_folder_id:
+        parent_drive_folder_id = project.company.drive_folder_id
+    elif department and department.company and department.company.drive_folder_id:
+        parent_drive_folder_id = department.company.drive_folder_id
+    else:
+        from django.conf import settings
+        parent_drive_folder_id = getattr(settings, 'GOOGLE_DRIVE_ROOT_FOLDER_ID', None)
+
+    if parent_drive_folder_id:
+        try:
+            from integrations.google_drive import create_task_google_doc
+            meta = {
+                'company': department.company.name if (department and department.company) else (project.company.name if (project and project.company) else ''),
+                'department': department.name if department else '',
+                'project': project.name if project else '',
+                'pic': pic.full_name if pic else '',
+                'status': 'Cần làm',
+                'notes': (request.data.get('notes') or '').strip()
+            }
+            drive_res = create_task_google_doc(name.strip(), parent_drive_folder_id, meta)
+            drive_file_id = drive_res.get('id')
+            drive_file_url = drive_res.get('webViewLink')
+        except Exception as e:
+            print(f"Error creating Google Doc for task: {e}")
+
     task = Task.objects.create(
         project=project,
         parent=parent,
@@ -187,22 +219,23 @@ def create_task(request):
         is_milestone=bool(request.data.get('is_milestone', False)),
         effort_points=request.data.get('effort_points') or None,
         notes=(request.data.get('notes') or '').strip(),
+        drive_file_id=drive_file_id,
+        drive_file_url=drive_file_url,
     )
     return Response(TaskTreeSerializer(task).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(['PATCH', 'DELETE'])
 def task_detail(request, pk):
-    """Gộp update + delete trên cùng 1 URL /api/tasks/<pk>/ — trước đây 2 view
-    riêng (update_task PATCH, delete_task DELETE) đăng ký trùng path khiến
-    Django luôn khớp view đầu tiên bất kể method, làm DELETE không bao giờ
-    tới được delete_task (luôn nhận 405 từ update_task)."""
     try:
         task = Task.objects.get(id=pk)
     except Task.DoesNotExist:
         return Response({'detail': 'Công việc không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'DELETE':
+        if task.drive_file_id:
+            from integrations.google_drive import trash_drive_item, run_async_drive_op
+            run_async_drive_op(trash_drive_item, task.drive_file_id)
         task.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -211,7 +244,11 @@ def task_detail(request, pk):
     if 'name' in data:
         if not data['name'] or not str(data['name']).strip():
             return Response({'detail': 'Tên công việc không được để trống'}, status=status.HTTP_400_BAD_REQUEST)
-        task.name = data['name'].strip()
+        new_name = data['name'].strip()
+        if new_name != task.name and task.drive_file_id:
+            from integrations.google_drive import rename_drive_item, run_async_drive_op
+            run_async_drive_op(rename_drive_item, task.drive_file_id, new_name)
+        task.name = new_name
 
     if 'status' in data:
         if data['status'] not in VALID_STATUSES:
@@ -303,42 +340,53 @@ def reorder_tasks(request):
         proj_item = Project.objects.filter(id=tid).first()
 
         if task:
+            target_drive_folder_id = None
             if project:
-                # Chuyển task vào Folder mới -> cập nhật cả project_id và department_id theo folder đó
                 task.project = project
                 task.department = project.department
                 task.parent = None
                 task.order_index = new_index + idx
                 task.save()
+                target_drive_folder_id = project.drive_folder_id
             elif department:
-                # Chuyển task trực tiếp vào Phòng ban mới -> xóa project_id và parent_id
                 task.department = department
                 task.project = None
                 task.parent = None
                 task.order_index = new_index + idx
                 task.save()
+                target_drive_folder_id = department.drive_folder_id
             elif parent_task:
-                # Chuyển task thành Việc con của parent_task
                 if parent_task.id != task.id:
                     task.parent = parent_task
                     task.project = parent_task.project
                     task.department = parent_task.department
                     task.order_index = new_index + idx
                     task.save()
+                    target_drive_folder_id = parent_task.project.drive_folder_id if parent_task.project else None
+
+            if task.drive_file_id and target_drive_folder_id:
+                from integrations.google_drive import move_drive_item, run_async_drive_op
+                run_async_drive_op(move_drive_item, task.drive_file_id, target_drive_folder_id)
+
         elif proj_item:
+            target_drive_folder_id = None
             if department:
-                # Chuyển Folder vào Phòng ban mới
                 proj_item.department = department
                 proj_item.parent = None
                 proj_item.order_index = new_index + idx
                 proj_item.save()
+                target_drive_folder_id = department.drive_folder_id
             elif project:
-                # Chuyển Folder thành Sub-folder con của project
                 if project.id != proj_item.id:
                     proj_item.parent = project
                     proj_item.department = project.department
                     proj_item.order_index = new_index + idx
                     proj_item.save()
+                    target_drive_folder_id = project.drive_folder_id
+
+            if proj_item.drive_folder_id and target_drive_folder_id:
+                from integrations.google_drive import move_drive_item, run_async_drive_op
+                run_async_drive_op(move_drive_item, proj_item.drive_folder_id, target_drive_folder_id)
 
     return Response({'detail': 'Reordered successfully'}, status=status.HTTP_200_OK)
 

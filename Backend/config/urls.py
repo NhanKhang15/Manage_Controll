@@ -23,6 +23,7 @@ urlpatterns = [
 
     path('api/companies/', company_views.company_tree, name='company_tree'),
     path('api/companies/create-with-folder/', company_views.create_company_with_folder, name='create_company_with_folder'),
+    path('api/companies/sync-drive/', company_views.sync_drive_view, name='sync_drive'),
     path('api/companies/<str:pk>/', company_views.delete_company, name='delete_company'),
     path('api/projects/', project_views.create_project, name='create_project'),
     path('api/projects/<str:pk>/', project_views.delete_project, name='delete_project'),

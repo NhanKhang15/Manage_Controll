@@ -37,6 +37,8 @@ class Department(models.Model):
         db_column='company_id'
     )
     name = models.CharField(max_length=255)
+    drive_folder_id = models.CharField(max_length=255, null=True, blank=True)
+    drive_folder_url = models.CharField(max_length=500, null=True, blank=True)
     order_index = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 

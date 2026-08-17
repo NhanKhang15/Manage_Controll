@@ -5,6 +5,7 @@ import {
   deleteCompany,
   createDepartment,
   deleteDepartment,
+  syncGoogleDrive,
   type TreeNode,
   type NodeType,
 } from "../../api/companies";
@@ -222,6 +223,39 @@ function CountTag({ label }: { label: string }) {
   );
 }
 
+function DriveLinkBtn({ url, title }: { url?: string | null; title: string }) {
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      title={title}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        color: "#2563EB",
+        background: "#EFF6FF",
+        border: "1px solid #BFDBFE",
+        textDecoration: "none",
+        fontSize: 12,
+        marginLeft: 4,
+        flex: "none",
+        transition: "all 0.15s ease",
+      }}
+    >
+      <svg width={13} height={13} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M7.71 3.5L1.15 15l3.43 6l6.55-11.5M9.73 15L13.16 21h13.1l-3.43-6M22.29 13.5l-6.55-11.5h-6.86l6.55 11.5" />
+      </svg>
+    </a>
+  );
+}
+
 const iconBtnStyle: CSSProperties = { background: "none", border: "none", cursor: "pointer", color: "var(--muted-2)", padding: 4, fontSize: 14 };
 const linkBtnStyle: CSSProperties = {
   background: "none",
@@ -243,6 +277,25 @@ export function AssignmentTree() {
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const [modalParentCompany, setModalParentCompany] = useState<{ id: string; name: string } | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  async function handleSyncDrive() {
+    setSyncing(true);
+    setError(null);
+    setSyncMessage(null);
+    try {
+      const res = await syncGoogleDrive();
+      setSyncMessage(res.message);
+      const tree = await getCompaniesTree();
+      setData(recomputeCounts(tree));
+      setTimeout(() => setSyncMessage(null), 6000);
+    } catch (err: any) {
+      setError(err.message || "Đồng bộ Google Drive thất bại");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -520,6 +573,11 @@ export function AssignmentTree() {
         {item.status && <StatusTag status={item.status} />}
         {item.childCount && <CountTag label={item.childCount} />}
 
+        <DriveLinkBtn
+          url={item.drive_file_url || item.drive_folder_url}
+          title={item.type === "task" ? "Mở Google Doc của công việc này" : "Mở thư mục trên Google Drive"}
+        />
+
         <span style={{ flex: 1 }} />
 
         {/* Level 1: Công ty (chứa Công ty con & Phòng ban) */}
@@ -665,33 +723,91 @@ export function AssignmentTree() {
             Cấu trúc phân cấp: Công ty → Phòng ban → Folder & Công việc
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => handleOpenCreateCompany(null)}
-          className="btn btn-primary"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 16px",
-            borderRadius: 12,
-            fontSize: 13.5,
-            fontWeight: 600,
-            boxShadow: "0 2px 8px rgba(79, 110, 247, 0.25)",
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-          }}
-        >
-          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          <span>Tạo công ty</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            onClick={handleSyncDrive}
+            disabled={syncing}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 14px",
+              borderRadius: 12,
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: "#1D4ED8",
+              background: "#EFF6FF",
+              border: "1px solid #BFDBFE",
+              cursor: syncing ? "not-allowed" : "pointer",
+              opacity: syncing ? 0.7 : 1,
+              transition: "all 0.2s ease",
+            }}
+            title="Đồng bộ toàn diện cấu trúc cây và file Google Doc lên Google Drive"
+          >
+            <svg
+              width={16}
+              height={16}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ animation: syncing ? "spin 1s linear infinite" : "none" }}
+            >
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+            </svg>
+            <span>{syncing ? "Đang đồng bộ Drive..." : "Đồng bộ Google Drive"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleOpenCreateCompany(null)}
+            className="btn btn-primary"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 16px",
+              borderRadius: 12,
+              fontSize: 13.5,
+              fontWeight: 600,
+              boxShadow: "0 2px 8px rgba(79, 110, 247, 0.25)",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Tạo công ty</span>
+          </button>
+        </div>
       </div>
 
       {/* Tree Card */}
       <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: 8 }}>
+        {syncMessage && (
+          <div
+            style={{
+              color: "#047857",
+              fontSize: 13,
+              padding: "8px 14px",
+              marginBottom: 8,
+              background: "#ECFDF5",
+              borderRadius: 8,
+              border: "1px solid #A7F3D0",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span>✓</span>
+            <span>{syncMessage}</span>
+          </div>
+        )}
+
         {error && (
           <div
             style={{

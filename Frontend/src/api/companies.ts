@@ -35,6 +35,8 @@ export interface TreeNode {
   progress_percent?: number;
   drive_folder_id?: string | null;
   drive_folder_url?: string | null;
+  drive_file_id?: string | null;
+  drive_file_url?: string | null;
   created_at?: string;
   children?: TreeNode[];
 }
@@ -71,6 +73,21 @@ export async function createDepartment(data: { company_id: string; name: string 
 export async function deleteDepartment(id: string): Promise<void> {
   return apiFetch<void>(`/departments/${id}/`, {
     method: "DELETE",
+  });
+}
+
+export async function syncGoogleDrive(companyId?: string): Promise<{
+  success: boolean;
+  message: string;
+  synced_companies: number;
+  synced_departments: number;
+  synced_projects: number;
+  synced_tasks: number;
+  errors: string[];
+}> {
+  return apiFetch("/companies/sync-drive/", {
+    method: "POST",
+    body: JSON.stringify({ company_id: companyId || null }),
   });
 }
 

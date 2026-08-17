@@ -66,7 +66,7 @@ class TaskTreeSerializer(serializers.ModelSerializer):
             'id', 'type', 'name', 'status', 'completed', 'completed_at', 'due_date',
             'order_index', 'assignees', 'department', 'department_id', 'pic', 'is_milestone',
             'effort_points', 'notes', 'parent', 'children', 'childCount', 'progress_percent',
-            'created_at',
+            'drive_file_id', 'drive_file_url', 'created_at',
         ]
 
     def get_assignees(self, obj):
@@ -108,6 +108,7 @@ class TaskFlatSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'status', 'completed', 'completed_at', 'due_date', 'project',
             'assignees', 'department', 'department_id', 'pic', 'is_milestone', 'effort_points', 'notes', 'parent',
+            'drive_file_id', 'drive_file_url',
         ]
 
     def get_project(self, obj):

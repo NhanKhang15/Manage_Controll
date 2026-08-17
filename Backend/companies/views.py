@@ -80,6 +80,9 @@ def create_company_with_folder(request):
 def delete_company(request, pk):
     try:
         company = Company.objects.get(id=pk)
+        if company.drive_folder_id:
+            from integrations.google_drive import trash_drive_item, run_async_drive_op
+            run_async_drive_op(trash_drive_item, company.drive_folder_id)
         company.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     except Company.DoesNotExist:
@@ -100,12 +103,31 @@ def get_departments(request):
         except Company.DoesNotExist:
             return Response({'detail': 'Công ty không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
 
-        department = Department.objects.create(company=company, name=name.strip())
+        drive_folder_id = None
+        drive_folder_url = None
+        parent_folder_id = company.drive_folder_id or getattr(settings, 'GOOGLE_DRIVE_ROOT_FOLDER_ID', None)
+        if parent_folder_id:
+            try:
+                from integrations.google_drive import create_drive_folder
+                drive_res = create_drive_folder(f"Phòng {name.strip()}", parent_folder_id)
+                drive_folder_id = drive_res.get('id')
+                drive_folder_url = drive_res.get('webViewLink')
+            except Exception as e:
+                print(f"Error creating department Drive folder: {e}")
+
+        department = Department.objects.create(
+            company=company,
+            name=name.strip(),
+            drive_folder_id=drive_folder_id,
+            drive_folder_url=drive_folder_url
+        )
         res_data = {
             'id': str(department.id),
             'type': 'department',
             'name': department.name,
             'company_id': str(company.id),
+            'drive_folder_id': department.drive_folder_id,
+            'drive_folder_url': department.drive_folder_url,
             'children': []
         }
         return Response(res_data, status=status.HTTP_201_CREATED)
@@ -138,6 +160,8 @@ def get_departments(request):
             'company_id': str(d.company_id),
             'order_index': d.order_index,
             'employee_count': d.employee_count,
+            'drive_folder_id': d.drive_folder_id,
+            'drive_folder_url': d.drive_folder_url,
         }
         for d in qs
     ]
@@ -148,7 +172,18 @@ def get_departments(request):
 def delete_department(request, pk):
     try:
         dept = Department.objects.get(id=pk)
+        if dept.drive_folder_id:
+            from integrations.google_drive import trash_drive_item, run_async_drive_op
+            run_async_drive_op(trash_drive_item, dept.drive_folder_id)
         dept.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     except Department.DoesNotExist:
         return Response({'detail': 'Phòng ban không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+def sync_drive_view(request):
+    company_id = request.data.get('company_id')
+    from integrations.google_drive import sync_entire_tree_to_drive
+    res = sync_entire_tree_to_drive(company_id=company_id)
+    return Response(res, status=status.HTTP_200_OK if res.get('success') else status.HTTP_400_BAD_REQUEST)

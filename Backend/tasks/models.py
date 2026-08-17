@@ -63,6 +63,8 @@ class Task(models.Model):
     is_milestone = models.BooleanField(default=False)
     effort_points = models.IntegerField(null=True, blank=True, choices=EFFORT_CHOICES)
     notes = models.TextField(blank=True, default='')
+    drive_file_id = models.CharField(max_length=255, null=True, blank=True)
+    drive_file_url = models.CharField(max_length=500, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
