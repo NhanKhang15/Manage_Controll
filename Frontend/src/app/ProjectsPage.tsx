@@ -13,7 +13,7 @@ import { WorkspaceBrowser } from "../features/projects/Workspace/WorkspaceBrowse
 import { AssignmentTree } from "../features/projects/AssignmentTree";
 import { Panel } from "../components/ui/Panel";
 import { useToast } from "../components/ui/Toast";
-import { getCompaniesTree, getCompanyOptions, type NodeType } from "../api/companies";
+import { getCompaniesTree, getCompanyOptions } from "../api/companies";
 import { getEmployees, type EmployeeListItem } from "../api/employees";
 import { createProject } from "../api/projects";
 import { createTask, updateTask, type UpdateTaskData } from "../api/tasks";

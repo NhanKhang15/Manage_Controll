@@ -9,7 +9,7 @@ import { DayView } from "../features/calendar/DayView";
 import { EventFormModal } from "../features/calendar/EventFormModal";
 import { EventDetailModal } from "../features/calendar/EventDetailModal";
 import { useToast } from "../components/ui/Toast";
-import { getCompanyOptions, type CompanyOptionItem } from "../api/companies";
+import { getCompanyOptions } from "../api/companies";
 import { getEvents } from "../api/events";
 import { addDays, getMonthsInRange, getWeekDays, parseDateKey, toDateKey } from "../features/calendar/dateUtils";
 import type { CalendarEventItem, CalendarViewMode } from "../types/calendar";
