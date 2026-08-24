@@ -13,12 +13,12 @@ import { businessKpisHardcoded } from "../mocks/dashboard";
 import { formatVietnameseDate, getGreeting } from "../utils/date";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/ui/Toast";
-import { getCompaniesTree } from "../api/companies";
-import { getMyTasks } from "../api/tasks";
+import { getProjectOptions } from "../api/projects";
+import { getMyTasks, getTasksList } from "../api/tasks";
 import { getEvents } from "../api/events";
 import { listProposals, formatAmountVi, type Proposal } from "../api/proposals";
 import { getRecentActivity, type ActivityEntry } from "../api/activity";
-import { flattenTasks, flattenProjects, fromFlatTask, type TaskItem, type ProjectOption } from "../features/tasks/types";
+import { fromFlatTask, type TaskItem, type ProjectOption } from "../features/tasks/types";
 import type { ApprovalItem, DashboardKpiItem, ProjectProgressItem, ActivityItem } from "../types/dashboard";
 
 interface MeetingEvent {
@@ -72,16 +72,17 @@ export function DashboardPage() {
     let isMounted = true;
     Promise.all([
       getMyTasks(companyId),
-      getCompaniesTree(companyId),
+      getTasksList("all", { company_id: companyId, limit: 200 }),
+      getProjectOptions(companyId),
       getEvents(now.getFullYear(), now.getMonth() + 1, companyId),
       listProposals(companyId, "pending"),
       getRecentActivity(companyId, 8),
     ])
-      .then(([mine, tree, events, proposals, acts]) => {
+      .then(([mine, allRes, projList, events, proposals, acts]) => {
         if (!isMounted) return;
         setMyTasks(mine.map(fromFlatTask));
-        setAllTasks(flattenTasks(tree));
-        setProjects(flattenProjects(tree));
+        setAllTasks(allRes.results.map(fromFlatTask));
+        setProjects(projList.map((p) => ({ id: p.id, name: p.name, status: p.status ?? undefined })));
         setMeetings(events as MeetingEvent[]);
         setPendingProposals(proposals);
         setActivity(acts);

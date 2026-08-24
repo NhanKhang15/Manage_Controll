@@ -1,17 +1,21 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, useMemo, type CSSProperties } from "react";
 import { Tree, getTreeLinePrefix, type NodeRendererProps } from "react-arborist";
 import {
   getCompaniesTree,
   deleteCompany,
-  createDepartment,
   deleteDepartment,
   syncGoogleDrive,
   type TreeNode,
   type NodeType,
 } from "../../api/companies";
-import { createProject, deleteProject } from "../../api/projects";
-import { createTask, updateTask, reorderTasks, deleteTask } from "../../api/tasks";
+import { deleteProject } from "../../api/projects";
+import { updateTask, reorderTasks, deleteTask } from "../../api/tasks";
+import { getEmployees, type EmployeeListItem } from "../../api/employees";
 import { CreateCompanyModal } from "./CreateCompanyModal";
+import { CreateDepartmentModal } from "./CreateDepartmentModal";
+import { CreateFolderModal } from "./CreateFolderModal";
+import { CreateTaskModal } from "../tasks/CreateTaskModal";
+import { CreateSubtaskModal } from "../tasks/CreateSubtaskModal";
 
 export type { NodeType, TreeNode };
 
@@ -53,7 +57,11 @@ function recomputeCounts(nodes: TreeNode[]): TreeNode[] {
         .map(([type, n2]) => `${n2} ${suffixFor(type)}`)
         .join(" · ");
     }
-    return { ...n, children, childCount };
+    return {
+      ...n,
+      children: n.type === "task" && children.length === 0 ? undefined : children,
+      childCount,
+    };
   });
 }
 
@@ -270,15 +278,71 @@ const linkBtnStyle: CSSProperties = {
   transition: "all 0.15s ease",
 };
 
+function collectNodes(nodes: TreeNode[], type: NodeType): { id: string; name: string }[] {
+  const result: { id: string; name: string }[] = [];
+  function traverse(list: TreeNode[]) {
+    for (const node of list) {
+      if (node.type === type) {
+        result.push({ id: node.id, name: node.name });
+      }
+      if (node.children && node.children.length > 0) {
+        traverse(node.children);
+      }
+    }
+  }
+  traverse(nodes);
+  return result;
+}
+
 export function AssignmentTree() {
   const [data, setData] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [modalParentCompany, setModalParentCompany] = useState<{ id: string; name: string } | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
+
+  // 1. Company Modal
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [modalParentCompany, setModalParentCompany] = useState<{ id: string; name: string } | null>(null);
+
+  // 2. Department Modal
+  const [deptModalOpen, setDeptModalOpen] = useState<boolean>(false);
+  const [deptModalCompany, setDeptModalCompany] = useState<{ id: string; name: string } | null>(null);
+
+  // 3. Folder Modal
+  const [folderModalOpen, setFolderModalOpen] = useState<boolean>(false);
+  const [folderModalContext, setFolderModalContext] = useState<{
+    id: string;
+    name: string;
+    type: "company" | "department" | "project";
+    companyId?: string;
+    departmentId?: string;
+    parentId?: string;
+  } | null>(null);
+
+  // 4. Task Modal
+  const [taskModalOpen, setTaskModalOpen] = useState<boolean>(false);
+  const [taskModalContext, setTaskModalContext] = useState<{
+    parentId?: string;
+    defaultProjectId?: string;
+    defaultDepartmentId?: string;
+    companyId?: string;
+  } | null>(null);
+
+  // 5. Subtask Modal
+  const [subtaskModalOpen, setSubtaskModalOpen] = useState<boolean>(false);
+  const [subtaskModalParent, setSubtaskModalParent] = useState<{
+    id: string;
+    name: string;
+    dueDate?: string | null;
+    departmentName?: string;
+  } | null>(null);
+
+  const availableCompanies = useMemo(() => collectNodes(data, "company"), [data]);
+  const availableDepartments = useMemo(() => collectNodes(data, "department"), [data]);
+  const availableProjects = useMemo(() => collectNodes(data, "project"), [data]);
 
   async function handleSyncDrive() {
     setSyncing(true);
@@ -306,6 +370,14 @@ export function AssignmentTree() {
         if (isMounted) {
           setData(recomputeCounts(tree));
           setLoading(false);
+          const firstCompanyId = tree.find((n) => n.type === "company")?.id;
+          if (firstCompanyId) {
+            getEmployees(firstCompanyId)
+              .then((emps) => {
+                if (isMounted) setEmployees(emps);
+              })
+              .catch(() => {});
+          }
         }
       })
       .catch((err: any) => {
@@ -343,60 +415,131 @@ export function AssignmentTree() {
     setTimeout(() => setHighlightId(null), 2500);
   }
 
-  async function handleAddDepartment(company: TreeNode) {
-    const name = window.prompt(`Tên phòng ban mới trong "${company.name}":`);
-    if (!name || !name.trim()) return;
-    setError(null);
-    try {
-      const newNode = await createDepartment({ company_id: company.id, name: name.trim() });
-      setData((prev) => recomputeCounts(addChildTo(prev, company.id, { ...newNode, type: "department", children: [] })));
-      setHighlightId(newNode.id);
-      setTimeout(() => setHighlightId(null), 2000);
-    } catch (err: any) {
-      setError(err.message || "Không thể tạo phòng ban mới");
-    }
+  function handleOpenAddDepartment(company: TreeNode) {
+    setDeptModalCompany({ id: company.id, name: company.name });
+    setDeptModalOpen(true);
   }
 
-  async function handleAddFolder(parent: TreeNode) {
-    const label = parent.type === "department" ? "Folder mới trong phòng ban" : "Folder con mới";
-    const name = window.prompt(`Tên ${label} "${parent.name}":`);
-    if (!name || !name.trim()) return;
-    setError(null);
-    try {
-      let newNode: TreeNode;
-      if (parent.type === "department") {
-        newNode = await createProject({ department_id: parent.id, name: name.trim() });
-      } else {
-        newNode = await createProject({ parent_id: parent.id, name: name.trim() });
-      }
-      setData((prev) => recomputeCounts(addChildTo(prev, parent.id, { ...newNode, type: "project", children: [] })));
-      setHighlightId(newNode.id);
-      setTimeout(() => setHighlightId(null), 2000);
-    } catch (err: any) {
-      setError(err.message || "Không thể tạo folder mới");
+  function handleCreateDeptSuccess(newDept: any) {
+    const parentCompanyId = newDept.company_id || deptModalCompany?.id;
+    const newNode: TreeNode = {
+      ...newDept,
+      type: "department",
+      children: newDept.children || [],
+    };
+    if (parentCompanyId) {
+      setData((prev) => recomputeCounts(addChildTo(prev, parentCompanyId, newNode)));
+    } else {
+      setData((prev) => recomputeCounts([...prev, newNode]));
     }
+    setHighlightId(newDept.id);
+    setTimeout(() => setHighlightId(null), 2500);
   }
 
-  async function handleAddTask(parent: TreeNode) {
-    const label = parent.type === "department" ? "công việc trong phòng ban" : parent.type === "project" ? "công việc trong folder" : "công việc con";
-    const name = window.prompt(`Tên ${label} "${parent.name}":`);
-    if (!name || !name.trim()) return;
-    setError(null);
-    try {
-      let newNode: TreeNode;
-      if (parent.type === "department") {
-        newNode = await createTask({ department_id: parent.id, name: name.trim() });
-      } else if (parent.type === "project") {
-        newNode = await createTask({ project_id: parent.id, name: name.trim() });
-      } else {
-        newNode = await createTask({ parent_id: parent.id, name: name.trim() });
-      }
-      setData((prev) => recomputeCounts(addChildTo(prev, parent.id, { ...newNode, type: "task", children: [] })));
-      setHighlightId(newNode.id);
-      setTimeout(() => setHighlightId(null), 2000);
-    } catch (err: any) {
-      setError(err.message || "Không thể tạo công việc mới");
+  function handleOpenAddFolder(parent: TreeNode) {
+    if (parent.type === "department") {
+      setFolderModalContext({
+        id: parent.id,
+        name: parent.name,
+        type: "department",
+        departmentId: parent.id,
+      });
+    } else if (parent.type === "project") {
+      setFolderModalContext({
+        id: parent.id,
+        name: parent.name,
+        type: "project",
+        parentId: parent.id,
+      });
+    } else {
+      setFolderModalContext({
+        id: parent.id,
+        name: parent.name,
+        type: "company",
+        companyId: parent.id,
+      });
     }
+    setFolderModalOpen(true);
+  }
+
+  function handleCreateFolderSuccess(newProject: any) {
+    const targetParentId = folderModalContext?.id || newProject.department_id || newProject.company_id;
+    const newNode: TreeNode = {
+      ...newProject,
+      type: "project",
+      children: newProject.children || [],
+    };
+    if (targetParentId) {
+      setData((prev) => recomputeCounts(addChildTo(prev, targetParentId, newNode)));
+    } else {
+      setData((prev) => recomputeCounts([...prev, newNode]));
+    }
+    setHighlightId(newProject.id);
+    setTimeout(() => setHighlightId(null), 2500);
+  }
+
+  function handleOpenAddTask(parent: TreeNode) {
+    if (parent.type === "department") {
+      setTaskModalContext({
+        parentId: parent.id,
+        defaultDepartmentId: parent.id,
+      });
+    } else if (parent.type === "project") {
+      setTaskModalContext({
+        parentId: parent.id,
+        defaultProjectId: parent.id,
+      });
+    } else {
+      setTaskModalContext({
+        parentId: parent.id,
+      });
+    }
+    setTaskModalOpen(true);
+  }
+
+  function handleCreateTaskSuccess(newTask: any) {
+    const targetParentId =
+      taskModalContext?.parentId ||
+      taskModalContext?.defaultProjectId ||
+      taskModalContext?.defaultDepartmentId ||
+      newTask.project?.id ||
+      newTask.department_id;
+    const newNode: TreeNode = {
+      ...newTask,
+      type: "task",
+      children: newTask.children || [],
+    };
+    if (targetParentId) {
+      setData((prev) => recomputeCounts(addChildTo(prev, targetParentId, newNode)));
+    } else {
+      setData((prev) => recomputeCounts([...prev, newNode]));
+    }
+    setHighlightId(newTask.id);
+    setTimeout(() => setHighlightId(null), 2500);
+  }
+
+  function handleOpenAddSubtask(task: TreeNode) {
+    setSubtaskModalParent({
+      id: task.id,
+      name: task.name,
+      dueDate: task.due_date,
+      departmentName: task.department || undefined,
+    });
+    setSubtaskModalOpen(true);
+  }
+
+  function handleCreateSubtaskSuccess(newSubtask: any) {
+    const parentTaskId = subtaskModalParent?.id;
+    const newNode: TreeNode = {
+      ...newSubtask,
+      type: "task",
+      children: newSubtask.children || [],
+    };
+    if (parentTaskId) {
+      setData((prev) => recomputeCounts(addChildTo(prev, parentTaskId, newNode)));
+    }
+    setHighlightId(newSubtask.id);
+    setTimeout(() => setHighlightId(null), 2500);
   }
 
   async function handleDelete(node: TreeNode) {
@@ -471,7 +614,7 @@ export function AssignmentTree() {
     const isTask = item.type === "task";
     const isProject = item.type === "project";
     const isDraggable = isTask || isProject;
-    const canToggle = !isTask && !!item.children && item.children.length > 0;
+    const canToggle = !!item.children && item.children.length > 0;
     const linePrefix = getTreeLinePrefix(node, { last: "└─ ", middle: "├─ ", pipe: "│  ", blank: "   " });
     const isHighlighted = item.id === highlightId;
 
@@ -599,7 +742,7 @@ export function AssignmentTree() {
               style={linkBtnStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                handleAddDepartment(item);
+                handleOpenAddDepartment(item);
               }}
               title="Tạo phòng ban mới trong công ty này"
             >
@@ -616,7 +759,7 @@ export function AssignmentTree() {
               style={linkBtnStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                handleAddFolder(item);
+                handleOpenAddFolder(item);
               }}
               title="Tạo folder trong phòng ban này"
             >
@@ -627,7 +770,7 @@ export function AssignmentTree() {
               style={linkBtnStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                handleAddTask(item);
+                handleOpenAddTask(item);
               }}
               title="Thêm công việc trực tiếp vào phòng ban này"
             >
@@ -644,7 +787,7 @@ export function AssignmentTree() {
               style={linkBtnStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                handleAddFolder(item);
+                handleOpenAddFolder(item);
               }}
               title="Tạo folder con trong folder này"
             >
@@ -655,7 +798,7 @@ export function AssignmentTree() {
               style={linkBtnStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                handleAddTask(item);
+                handleOpenAddTask(item);
               }}
               title="Thêm công việc vào folder này"
             >
@@ -672,7 +815,7 @@ export function AssignmentTree() {
               style={linkBtnStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                handleAddTask(item);
+                handleOpenAddSubtask(item);
               }}
               title="Thêm công việc con"
             >
@@ -838,7 +981,7 @@ export function AssignmentTree() {
             width="100%"
             height={620}
             rowHeight={38}
-            indent={0}
+            indent={24}
             disableDrag={(item) => item.type !== "task" && item.type !== "project"}
             disableDrop={({ parentNode, dragNodes }) => {
               if (!parentNode?.data) return true; // Không cho thả tự do ra ngoài root
@@ -869,6 +1012,63 @@ export function AssignmentTree() {
         onSuccess={handleCreateCompanySuccess}
         parentCompany={modalParentCompany}
         availableParents={availableParents}
+      />
+
+      {/* Create Department Modal */}
+      <CreateDepartmentModal
+        isOpen={deptModalOpen}
+        onClose={() => {
+          setDeptModalOpen(false);
+          setDeptModalCompany(null);
+        }}
+        onSuccess={handleCreateDeptSuccess}
+        companyId={deptModalCompany?.id}
+        companyName={deptModalCompany?.name}
+        availableCompanies={availableCompanies}
+      />
+
+      {/* Create Folder / Subfolder Modal */}
+      <CreateFolderModal
+        isOpen={folderModalOpen}
+        onClose={() => {
+          setFolderModalOpen(false);
+          setFolderModalContext(null);
+        }}
+        onSuccess={handleCreateFolderSuccess}
+        parentId={folderModalContext?.parentId}
+        departmentId={folderModalContext?.departmentId}
+        companyId={folderModalContext?.companyId}
+        parentName={folderModalContext?.name}
+        parentType={folderModalContext?.type}
+        availableCompanies={availableCompanies}
+        availableDepartments={availableDepartments}
+      />
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={taskModalOpen}
+        onClose={() => {
+          setTaskModalOpen(false);
+          setTaskModalContext(null);
+        }}
+        onSuccess={handleCreateTaskSuccess}
+        defaultProjectId={taskModalContext?.defaultProjectId}
+        defaultDepartmentId={taskModalContext?.defaultDepartmentId}
+        availableProjects={availableProjects}
+        availableDepartments={availableDepartments}
+        availableEmployees={employees}
+      />
+
+      {/* Create Subtask Modal */}
+      <CreateSubtaskModal
+        isOpen={subtaskModalOpen}
+        onClose={() => {
+          setSubtaskModalOpen(false);
+          setSubtaskModalParent(null);
+        }}
+        onSuccess={handleCreateSubtaskSuccess}
+        parentTask={subtaskModalParent}
+        availableEmployees={employees}
       />
     </div>
   );

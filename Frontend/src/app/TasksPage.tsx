@@ -13,11 +13,12 @@ import { ProposalApprovalList } from "../features/proposals/ProposalApprovalList
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../auth/AuthContext";
 import { useDebounce } from "../hooks/useDebounce";
-import { getCompaniesTree, getDepartments, type DepartmentOption } from "../api/companies";
+import { getDepartments, type DepartmentOption } from "../api/companies";
+import { getProjectOptions } from "../api/projects";
 import { createTask, updateTask, getTasksList } from "../api/tasks";
 import { listProposals, decideProposal, type Proposal } from "../api/proposals";
+import { CreateTaskModal } from "../features/tasks/CreateTaskModal";
 import {
-  flattenProjects,
   fromFlatTask,
   type TaskItem,
   type ProjectOption,
@@ -58,18 +59,19 @@ export function TasksPage() {
   const [departmentFilter, setDepartmentFilter] = useState("");
 
   const [pendingProposals, setPendingProposals] = useState<Proposal[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Tải danh sách dự án, phòng ban & đề xuất chờ duyệt 1 lần ban đầu
   useEffect(() => {
     if (!companyId) return;
     Promise.all([
-      getCompaniesTree(companyId),
+      getProjectOptions(companyId),
       getDepartments(companyId),
       listProposals(companyId, "pending"),
       getTasksList("mine", { company_id: companyId, limit: 6, status: "Cần làm" }),
     ])
-      .then(([tree, depts, proposals, mineRes]) => {
-        setProjects(flattenProjects(tree));
+      .then(([projList, depts, proposals, mineRes]) => {
+        setProjects(projList.map((p) => ({ id: p.id, name: p.name, status: p.status ?? undefined })));
         setDepartments(depts);
         setPendingProposals(proposals);
         setChecklistTasks(mineRes.results.map(fromFlatTask));
@@ -258,7 +260,12 @@ export function TasksPage() {
 
   return (
     <AppShellPage initialNavId="tasks">
-      <TaskHeader activeTab={topTab} onChangeTab={setTopTab} pendingApprovalsCount={pendingProposals.length} />
+      <TaskHeader
+        activeTab={topTab}
+        onChangeTab={setTopTab}
+        pendingApprovalsCount={pendingProposals.length}
+        onOpenCreateTask={() => setIsCreateModalOpen(true)}
+      />
 
       {topTab === "approvals" ? (
         <Panel title={`Đề xuất chờ duyệt (${pendingProposals.length})`}>
@@ -330,6 +337,19 @@ export function TasksPage() {
           )}
         </>
       )}
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => {
+          showToast("Đã tạo công việc thành công!", "success");
+          fetchTasks(0, false);
+        }}
+        companyId={companyId}
+        availableProjects={projects}
+        availableDepartments={departments}
+      />
     </AppShellPage>
   );
 }

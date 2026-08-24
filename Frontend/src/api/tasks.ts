@@ -26,7 +26,10 @@ export interface CreateTaskData {
   project_id?: string;
   parent_id?: string;
   name: string;
+  status?: string;
+  due_date?: string | null;
   pic_id?: string | null;
+  assignee_ids?: string[];
   department_id?: string | null;
   is_milestone?: boolean;
   is_flagged?: boolean;
@@ -34,6 +37,7 @@ export interface CreateTaskData {
   can_automate?: boolean;
   effort_points?: number | null;
   notes?: string;
+  order_index?: number;
 }
 
 export interface UpdateTaskData {

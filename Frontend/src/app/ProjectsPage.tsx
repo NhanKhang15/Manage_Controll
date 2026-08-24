@@ -13,7 +13,7 @@ import { WorkspaceBrowser } from "../features/projects/Workspace/WorkspaceBrowse
 import { AssignmentTree } from "../features/projects/AssignmentTree";
 import { Panel } from "../components/ui/Panel";
 import { useToast } from "../components/ui/Toast";
-import { getCompaniesTree, type NodeType } from "../api/companies";
+import { getCompaniesTree, getCompanyOptions, type NodeType } from "../api/companies";
 import { getEmployees, type EmployeeListItem } from "../api/employees";
 import { createProject } from "../api/projects";
 import { createTask, updateTask, type UpdateTaskData } from "../api/tasks";
@@ -31,17 +31,14 @@ export function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState("");
 
-  // Danh sách công ty cho dropdown: giống cách CalendarPage.tsx lấy company —
-  // getCompaniesTree() không company_id trả toàn bộ cây đa công ty trong hệ
-  // thống — nhưng ở đây chỉ lấy đúng cấp gốc (root), không liệt kê công ty con.
+  // Danh sách công ty cho dropdown: lấy danh sách phẳng siêu nhẹ qua getCompanyOptions()
   useEffect(() => {
-    getCompaniesTree()
-      .then((tree) => {
-        const roots = tree
-          .filter((n) => n.type === ("company" as NodeType))
-          .map((n) => ({ id: n.id, name: n.name }));
-        setCompanies(roots);
-        setCompanyId((prev) => prev || roots[0]?.id || "");
+    getCompanyOptions()
+      .then((comps) => {
+        const roots = comps.filter((c) => !c.parent_id).map((c) => ({ id: c.id, name: c.name }));
+        const list = roots.length > 0 ? roots : comps.map((c) => ({ id: c.id, name: c.name }));
+        setCompanies(list);
+        setCompanyId((prev) => prev || list[0]?.id || "");
       })
       .catch(() => showToast("Không tải được danh sách công ty", "danger"));
   }, [showToast]);
@@ -131,12 +128,14 @@ export function ProjectsPage() {
         <>
           {view === "folder" && (
             <WorkspaceBrowser
+              companyId={companyId}
               companyName={selectedCompanyName}
               projects={projects}
               employees={employees}
               onCreateProject={handleCreateProject}
               onCreateTask={handleCreateTask}
               onUpdateTask={handleUpdateTask}
+              onRefetch={refetch}
             />
           )}
 

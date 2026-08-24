@@ -202,6 +202,11 @@ def create_task(request):
         from django.conf import settings
         parent_drive_folder_id = getattr(settings, 'GOOGLE_DRIVE_ROOT_FOLDER_ID', None)
 
+    raw_status = request.data.get('status', 'Cần làm')
+    task_status = raw_status if raw_status in VALID_STATUSES else 'Cần làm'
+    due_date = request.data.get('due_date') or None
+    order_index = request.data.get('order_index', 0)
+
     if parent_drive_folder_id:
         try:
             from integrations.google_drive import create_task_google_doc
@@ -210,7 +215,7 @@ def create_task(request):
                 'department': department.name if department else '',
                 'project': project.name if project else '',
                 'pic': pic.full_name if pic else '',
-                'status': 'Cần làm',
+                'status': task_status,
                 'notes': (request.data.get('notes') or '').strip()
             }
             drive_res = create_task_google_doc(name.strip(), parent_drive_folder_id, meta)
@@ -223,8 +228,11 @@ def create_task(request):
         project=project,
         parent=parent,
         name=name.strip(),
-        status='Cần làm',
-        is_completed=False,
+        status=task_status,
+        is_completed=(task_status == 'Hoàn thành'),
+        completed_at=timezone.now() if task_status == 'Hoàn thành' else None,
+        due_date=due_date,
+        order_index=order_index if isinstance(order_index, int) else 0,
         pic=pic,
         department=department,
         is_milestone=bool(request.data.get('is_milestone', False)),
@@ -236,6 +244,16 @@ def create_task(request):
         drive_file_id=drive_file_id,
         drive_file_url=drive_file_url,
     )
+
+    assignee_ids = request.data.get('assignee_ids', [])
+    if isinstance(assignee_ids, list) and assignee_ids:
+        for emp_id in assignee_ids:
+            try:
+                emp = Employee.objects.get(id=emp_id)
+                TaskAssignment.objects.get_or_create(task=task, employee=emp, defaults={'role': 'assignee'})
+            except Employee.DoesNotExist:
+                pass
+
     return Response(TaskTreeSerializer(task).data, status=status.HTTP_201_CREATED)
 
 

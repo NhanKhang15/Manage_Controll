@@ -68,12 +68,15 @@ def create_project(request):
         except Exception as e:
             print(f"Error creating project Drive folder: {e}")
 
+    order_index = request.data.get('order_index', 0)
+
     project = Project.objects.create(
         company=company,
         department=department,
         parent=parent,
         name=name.strip(),
         status=proj_status,
+        order_index=order_index if isinstance(order_index, int) else 0,
         drive_folder_id=drive_folder_id,
         drive_folder_url=drive_folder_url,
     )
@@ -85,6 +88,7 @@ def create_project(request):
         'status': project.status,
         'company_id': str(company.id),
         'department_id': str(department.id) if department else None,
+        'order_index': project.order_index,
         'drive_folder_id': project.drive_folder_id,
         'drive_folder_url': project.drive_folder_url,
         'children': []
@@ -102,3 +106,33 @@ def delete_project(request, pk):
         return Response(status=status.HTTP_204_NO_CONTENT)
     except Project.DoesNotExist:
         return Response({'detail': 'Dự án không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+def project_options(request):
+    """
+    Endpoint siêu nhẹ trả danh sách dự án phẳng để phục vụ dropdown lọc (ở trang Tasks, Dashboard, v.v.).
+    """
+    company_id = request.query_params.get('company_id')
+    department_id = request.query_params.get('department_id')
+
+    qs = Project.objects.all()
+    if company_id:
+        qs = qs.filter(company_id=company_id)
+    if department_id:
+        qs = qs.filter(department_id=department_id)
+
+    qs = qs.order_by('order_index', 'name')
+    data = [
+        {
+            'id': str(p.id),
+            'name': p.name,
+            'status': p.status,
+            'company_id': str(p.company_id),
+            'department_id': str(p.department_id) if p.department_id else None,
+            'parent_id': str(p.parent_id) if p.parent_id else None,
+        }
+        for p in qs
+    ]
+    return Response(data)
+

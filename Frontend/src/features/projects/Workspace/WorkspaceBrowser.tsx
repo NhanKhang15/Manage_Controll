@@ -9,6 +9,9 @@ import { currentUser } from "../../../mocks/user";
 import type { EmployeeListItem } from "../../../api/employees";
 import type { UpdateTaskData } from "../../../api/tasks";
 import { STATUS_COLOR, findTaskById, projectColor, type ProjectNode, type ProjectTaskNode, type TaskStatus } from "../types";
+import { CreateFolderModal } from "../CreateFolderModal";
+import { CreateTaskModal } from "../../tasks/CreateTaskModal";
+import { CreateSubtaskModal } from "../../tasks/CreateSubtaskModal";
 
 const LEGAL_ENTITY_NAME = "Pháp nhân";
 
@@ -29,20 +32,35 @@ function makeMessage(text: string): CommentMessage {
  * CSS gốc tham chiếu: .drive-bar, .workspace, .wk-cols
  */
 export interface WorkspaceBrowserProps {
+  companyId?: string;
   companyName: string;
   projects: ProjectNode[];
   employees: EmployeeListItem[];
-  onCreateProject: (name: string) => void;
-  onCreateTask: (projectId: string, parentId: string | null, name: string) => void;
+  onCreateProject?: (name: string) => void;
+  onCreateTask?: (projectId: string, parentId: string | null, name: string) => void;
   onUpdateTask: (taskId: string, patch: UpdateTaskData) => void;
+  onRefetch?: () => void;
 }
 
-export function WorkspaceBrowser({ companyName, projects, employees, onCreateProject, onCreateTask, onUpdateTask }: WorkspaceBrowserProps) {
+export function WorkspaceBrowser({
+  companyId = "",
+  companyName,
+  projects,
+  employees,
+  onUpdateTask,
+  onRefetch,
+}: WorkspaceBrowserProps) {
   const { showToast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id ?? "");
   const [taskPath, setTaskPath] = useState<string[]>([]);
   const [internalMessages, setInternalMessages] = useState<Record<string, CommentMessage[]>>({});
   const [sharedMessages, setSharedMessages] = useState<Record<string, CommentMessage[]>>({});
+
+  // Modals state
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isSubtaskModalOpen, setIsSubtaskModalOpen] = useState(false);
+  const [subtaskParent, setSubtaskParent] = useState<{ id: string; name: string; dueDate?: string | null } | null>(null);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
 
@@ -63,9 +81,17 @@ export function WorkspaceBrowser({ companyName, projects, employees, onCreatePro
     setSharedMessages((prev) => ({ ...prev, [nodeKey]: [...(prev[nodeKey] ?? []), makeMessage(text)] }));
   }
 
-  function handleAddTask(projectId: string, parentId: string | null) {
-    const name = window.prompt(parentId ? "Tên việc con mới:" : "Tên công việc mới:");
-    if (name && name.trim()) onCreateTask(projectId, parentId, name.trim());
+  function handleOpenAddTask(parentTask: ProjectTaskNode | null) {
+    if (parentTask) {
+      setSubtaskParent({
+        id: parentTask.id,
+        name: parentTask.title,
+        dueDate: parentTask.dueDate,
+      });
+      setIsSubtaskModalOpen(true);
+    } else {
+      setIsTaskModalOpen(true);
+    }
   }
 
   // Dựng các cột Miller theo đường đã chọn — mỗi cột là children của node được chọn ở cột trước.
@@ -157,10 +183,7 @@ export function WorkspaceBrowser({ companyName, projects, employees, onCreatePro
 
           <WorkspaceColumn
             title={companyName}
-            onAdd={() => {
-              const name = window.prompt("Tên dự án mới:");
-              if (name && name.trim()) onCreateProject(name.trim());
-            }}
+            onAdd={() => setIsFolderModalOpen(true)}
             addTitle="Tạo dự án mới"
           >
             {projects.length === 0 && <div className="mini-empty">Chưa có dự án nào.</div>}
@@ -183,7 +206,7 @@ export function WorkspaceBrowser({ companyName, projects, employees, onCreatePro
               <WorkspaceColumn
                 key={col.parentTask?.id ?? `top-${selectedProject.id}`}
                 title={col.parentTask?.title ?? selectedProject.name}
-                onAdd={() => handleAddTask(selectedProject.id, col.parentTask?.id ?? null)}
+                onAdd={() => handleOpenAddTask(col.parentTask)}
                 addTitle="Thêm công việc"
               >
                 {col.tasks.length === 0 && <div className="mini-empty">Chưa có công việc nào.</div>}
@@ -208,6 +231,49 @@ export function WorkspaceBrowser({ companyName, projects, employees, onCreatePro
           {detail}
         </div>
       </div>
+
+      {/* Create Folder Modal */}
+      <CreateFolderModal
+        isOpen={isFolderModalOpen}
+        onClose={() => setIsFolderModalOpen(false)}
+        onSuccess={() => {
+          showToast("Đã tạo dự án / folder thành công!", "success");
+          onRefetch?.();
+        }}
+        companyId={companyId}
+        parentName={companyName}
+        parentType="company"
+      />
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
+        onSuccess={() => {
+          showToast("Đã tạo công việc thành công!", "success");
+          onRefetch?.();
+        }}
+        companyId={companyId}
+        defaultProjectId={selectedProject?.id}
+        availableProjects={projects.map((p) => ({ id: p.id, name: p.name }))}
+        availableEmployees={employees}
+      />
+
+      {/* Create Subtask Modal */}
+      <CreateSubtaskModal
+        isOpen={isSubtaskModalOpen}
+        onClose={() => {
+          setIsSubtaskModalOpen(false);
+          setSubtaskParent(null);
+        }}
+        onSuccess={() => {
+          showToast("Đã tạo việc con thành công!", "success");
+          onRefetch?.();
+        }}
+        parentTask={subtaskParent}
+        companyId={companyId}
+        availableEmployees={employees}
+      />
     </>
   );
 }

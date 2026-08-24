@@ -9,23 +9,10 @@ import { DayView } from "../features/calendar/DayView";
 import { EventFormModal } from "../features/calendar/EventFormModal";
 import { EventDetailModal } from "../features/calendar/EventDetailModal";
 import { useToast } from "../components/ui/Toast";
-import { getCompaniesTree, type TreeNode } from "../api/companies";
+import { getCompanyOptions, type CompanyOptionItem } from "../api/companies";
 import { getEvents } from "../api/events";
 import { addDays, getMonthsInRange, getWeekDays, parseDateKey, toDateKey } from "../features/calendar/dateUtils";
 import type { CalendarEventItem, CalendarViewMode } from "../types/calendar";
-
-function flattenCompanies(nodes: TreeNode[], depth = 0): { id: string; name: string; depth: number }[] {
-  let list: { id: string; name: string; depth: number }[] = [];
-  for (const node of nodes) {
-    if (node.type === "company" || !node.type) {
-      list.push({ id: node.id, name: node.name, depth });
-      if (node.children && node.children.length > 0) {
-        list = list.concat(flattenCompanies(node.children, depth + 1));
-      }
-    }
-  }
-  return list;
-}
 
 export function CalendarPage() {
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
@@ -53,11 +40,11 @@ export function CalendarPage() {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  // Load company tree
+  // Load company list
   useEffect(() => {
-    getCompaniesTree()
-      .then((tree) => {
-        const flat = flattenCompanies(tree);
+    getCompanyOptions()
+      .then((comps) => {
+        const flat = comps.map((c) => ({ id: c.id, name: c.name, depth: 0 }));
         setCompanyList(flat);
         if (flat.length > 0) {
           setSelectedCompanyId(flat[0].id);

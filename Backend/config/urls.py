@@ -22,10 +22,12 @@ urlpatterns = [
     path('api/auth/me/', employee_auth_views.me_view, name='auth_me'),
 
     path('api/companies/', company_views.company_tree, name='company_tree'),
+    path('api/companies/options/', company_views.company_options, name='company_options'),
     path('api/companies/create-with-folder/', company_views.create_company_with_folder, name='create_company_with_folder'),
     path('api/companies/sync-drive/', company_views.sync_drive_view, name='sync_drive'),
     path('api/companies/<str:pk>/', company_views.delete_company, name='delete_company'),
     path('api/projects/', project_views.create_project, name='create_project'),
+    path('api/projects/options/', project_views.project_options, name='project_options'),
     path('api/projects/<str:pk>/', project_views.delete_project, name='delete_project'),
     path('api/tasks/', task_views.create_task, name='create_task'),
     path('api/tasks/all/', task_views.all_tasks_view, name='all_tasks'),

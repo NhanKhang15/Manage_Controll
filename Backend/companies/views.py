@@ -9,18 +9,75 @@ from .serializers import CompanyTreeSerializer
 from integrations.google_drive import create_drive_folder
 
 
+from employees.models import EmployeeCompany
+
+
+@api_view(['GET'])
+def company_options(request):
+    """
+    Endpoint siêu nhẹ trả danh sách phẳng công ty (id, name, parent_id, order_index)
+    dùng cho dropdowns (Calendar, Projects, v.v.).
+    Chỉ trả về các công ty mà user có quyền truy cập.
+    """
+    employee = getattr(request.user, 'employee', None)
+    qs = Company.objects.filter(is_active=True)
+
+    if not (getattr(request.user, 'is_superuser', False) or getattr(request.user, 'is_staff', False)) and employee:
+        user_comp_ids = EmployeeCompany.objects.filter(
+            employee=employee, left_at__isnull=True
+        ).values_list('company_id', flat=True)
+        qs = qs.filter(id__in=user_comp_ids)
+
+    qs = qs.order_by('order_index', 'name')
+    data = [
+        {
+            'id': str(c.id),
+            'name': c.name,
+            'parent_id': str(c.parent_id) if c.parent_id else None,
+            'order_index': c.order_index,
+        }
+        for c in qs
+    ]
+    return Response(data)
+
+
 @api_view(['GET'])
 def company_tree(request):
-    """company_id không truyền -> trả toàn bộ cây công ty gốc trong hệ thống
-    (dùng cho màn quản lý đa công ty ở trang Dự án → Phân công). Có company_id
-    -> chỉ trả đúng cây của công ty đó, tránh lộ dữ liệu dự án/công việc của
-    công ty khác cho các trang scope theo 1 công ty (Dashboard, Công việc)."""
+    """company_id không truyền -> trả toàn bộ cây công ty gốc trong quyền của user.
+    Có company_id -> chỉ trả đúng cây của công ty đó sau khi xác thực quyền hạn."""
+    employee = getattr(request.user, 'employee', None)
     company_id = request.query_params.get('company_id')
-    if company_id:
-        companies = Company.objects.filter(id=company_id, is_active=True)
+
+    qs = Company.objects.filter(is_active=True)
+
+    if not (getattr(request.user, 'is_superuser', False) or getattr(request.user, 'is_staff', False)) and employee:
+        user_comp_ids = set(
+            EmployeeCompany.objects.filter(employee=employee, left_at__isnull=True).values_list('company_id', flat=True)
+        )
+        if company_id:
+            if company_id not in user_comp_ids:
+                return Response({'detail': 'Bạn không có quyền truy cập công ty này'}, status=status.HTTP_403_FORBIDDEN)
+            qs = qs.filter(id=company_id)
+        else:
+            qs = qs.filter(id__in=user_comp_ids, parent__isnull=True).order_by('order_index')
     else:
-        companies = Company.objects.filter(parent__isnull=True, is_active=True).order_by('order_index')
-    serializer = CompanyTreeSerializer(companies, many=True)
+        if company_id:
+            qs = qs.filter(id=company_id)
+        else:
+            qs = qs.filter(parent__isnull=True).order_by('order_index')
+
+    qs = qs.prefetch_related(
+        'children',
+        'departments__projects__children',
+        'departments__projects__tasks__assignments__employee',
+        'departments__projects__tasks__pic',
+        'departments__projects__tasks__children',
+        'departments__tasks__assignments__employee',
+        'departments__tasks__pic',
+        'departments__tasks__children',
+    )
+
+    serializer = CompanyTreeSerializer(qs, many=True)
     return Response(serializer.data)
 
 
@@ -115,9 +172,11 @@ def get_departments(request):
             except Exception as e:
                 print(f"Error creating department Drive folder: {e}")
 
+        order_index = request.data.get('order_index', 0)
         department = Department.objects.create(
             company=company,
             name=name.strip(),
+            order_index=order_index if isinstance(order_index, int) else 0,
             drive_folder_id=drive_folder_id,
             drive_folder_url=drive_folder_url
         )
@@ -126,6 +185,7 @@ def get_departments(request):
             'type': 'department',
             'name': department.name,
             'company_id': str(company.id),
+            'order_index': department.order_index,
             'drive_folder_id': department.drive_folder_id,
             'drive_folder_url': department.drive_folder_url,
             'children': []

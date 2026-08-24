@@ -20,10 +20,14 @@ class ProjectTreeSerializer(serializers.ModelSerializer):
         ]
 
     def _sub_folders(self, obj):
-        return list(obj.children.all().order_by('order_index'))
+        if not hasattr(obj, '_cached_sub_folders'):
+            obj._cached_sub_folders = list(obj.children.all().order_by('order_index'))
+        return obj._cached_sub_folders
 
     def _top_tasks(self, obj):
-        return list(obj.tasks.filter(parent__isnull=True).order_by('order_index'))
+        if not hasattr(obj, '_cached_top_tasks'):
+            obj._cached_top_tasks = list(obj.tasks.filter(parent__isnull=True).order_by('order_index'))
+        return obj._cached_top_tasks
 
     def get_children(self, obj):
         sub_folders = self._sub_folders(obj)
@@ -34,8 +38,10 @@ class ProjectTreeSerializer(serializers.ModelSerializer):
         ]
 
     def get_childCount(self, obj):
-        folders_count = obj.children.count()
-        tasks_count = obj.tasks.filter(parent__isnull=True).count()
+        sub_folders = self._sub_folders(obj)
+        tasks = self._top_tasks(obj)
+        folders_count = len(sub_folders)
+        tasks_count = len(tasks)
         parts = []
         if folders_count > 0:
             parts.append(f"{folders_count} folder con")
@@ -45,3 +51,4 @@ class ProjectTreeSerializer(serializers.ModelSerializer):
 
     def get_progress_percent(self, obj):
         return progress_percent_of_tasks(self._top_tasks(obj))
+

@@ -44,6 +44,20 @@ export interface TreeNode {
   children?: TreeNode[];
 }
 
+export interface CompanyOptionItem {
+  id: string;
+  name: string;
+  parent_id?: string | null;
+  order_index?: number;
+}
+
+/**
+ * Lấy danh sách công ty phẳng siêu nhẹ cho dropdowns (Calendar, Projects Selector, v.v.).
+ */
+export async function getCompanyOptions(): Promise<CompanyOptionItem[]> {
+  return apiFetch<CompanyOptionItem[]>("/companies/options/");
+}
+
 /**
  * companyId bỏ trống -> trả toàn bộ cây đa công ty trong hệ thống (dùng cho
  * màn quản lý ở trang Dự án → Phân công). Truyền companyId -> chỉ trả cây của
@@ -66,7 +80,11 @@ export async function deleteCompany(id: string): Promise<void> {
   });
 }
 
-export async function createDepartment(data: { company_id: string; name: string }): Promise<TreeNode> {
+export async function createDepartment(data: {
+  company_id: string;
+  name: string;
+  order_index?: number;
+}): Promise<TreeNode> {
   return apiFetch<TreeNode>("/departments/", {
     method: "POST",
     body: JSON.stringify(data),
