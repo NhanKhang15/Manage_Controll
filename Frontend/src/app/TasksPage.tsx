@@ -18,6 +18,7 @@ import { getProjectOptions } from "../api/projects";
 import { createTask, updateTask, getTasksList } from "../api/tasks";
 import { listProposals, decideProposal, type Proposal } from "../api/proposals";
 import { CreateTaskModal } from "../features/tasks/CreateTaskModal";
+import { TaskDetailDrawer } from "../features/tasks/TaskDetailDrawer";
 import {
   fromFlatTask,
   type TaskItem,
@@ -30,6 +31,7 @@ export function TasksPage() {
   const { employee } = useAuth();
   const companyId = employee?.companies?.[0]?.id ?? null;
   const canApproveProposals = employee?.companies?.[0]?.can_approve_proposals ?? false;
+  const dueSoonDays = employee?.companies?.[0]?.due_soon_days ?? 2;
   const { showToast } = useToast();
 
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -60,6 +62,16 @@ export function TasksPage() {
 
   const [pendingProposals, setPendingProposals] = useState<Proposal[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(searchParams.get("task_id"));
+
+  // Nạp lại riêng "Checklist của tôi" — tách khỏi effect tải ban đầu bên dưới
+  // để có thể gọi lại sau khi tạo/sửa công việc (tránh phải reload trang mới thấy việc mới).
+  const refetchChecklist = useCallback(() => {
+    if (!companyId) return;
+    getTasksList("mine", { company_id: companyId, limit: 6, status: "Cần làm" })
+      .then((res) => setChecklistTasks(res.results.map(fromFlatTask)))
+      .catch(() => {});
+  }, [companyId]);
 
   // Tải danh sách dự án, phòng ban & đề xuất chờ duyệt 1 lần ban đầu
   useEffect(() => {
@@ -228,6 +240,7 @@ export function TasksPage() {
     try {
       await createTask({ project_id: projectId, name });
       fetchTasks(0, false);
+      refetchChecklist();
       showToast("Đã tạo công việc thành công", "success");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Không tạo được công việc", "danger");
@@ -312,10 +325,11 @@ export function TasksPage() {
                 sortKey={sortKey}
                 sortDir={sortDir}
                 onSort={handleSort}
-                onSelectTask={(task) => showToast(`Xem "${task.title}" trong trang Dự án → Phân công`, "default")}
+                onSelectTask={(task) => setSelectedTaskId(task.id)}
                 onFlag={handleToggleFlag}
                 onProblem={handleToggleProblem}
                 onAutomate={handleToggleAutomate}
+                dueSoonDays={dueSoonDays}
               />
 
               <div ref={observerTargetRef} style={{ height: 20, margin: "10px 0" }} />
@@ -345,10 +359,21 @@ export function TasksPage() {
         onSuccess={() => {
           showToast("Đã tạo công việc thành công!", "success");
           fetchTasks(0, false);
+          refetchChecklist();
         }}
         companyId={companyId}
         availableProjects={projects}
         availableDepartments={departments}
+      />
+
+      <TaskDetailDrawer
+        taskId={selectedTaskId}
+        companyId={companyId}
+        onClose={() => setSelectedTaskId(null)}
+        onChanged={() => {
+          fetchTasks(0, false);
+          refetchChecklist();
+        }}
       />
     </AppShellPage>
   );

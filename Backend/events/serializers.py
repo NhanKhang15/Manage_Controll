@@ -18,6 +18,8 @@ class EventSerializer(serializers.ModelSerializer):
     attachments = EventAttachmentSerializer(many=True, read_only=True)
     driver_name = serializers.CharField(source='driver.full_name', read_only=True)
     creator_name = serializers.CharField(source='created_by.full_name', read_only=True)
+    invited_department_ids = serializers.SerializerMethodField()
+    invited_employee_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
@@ -26,8 +28,15 @@ class EventSerializer(serializers.ModelSerializer):
             'start_time', 'end_time', 'location', 'online_meeting_link',
             'created_by', 'creator_name', 'need_pickup_car', 'driver',
             'driver_name', 'has_gift', 'gift_note', 'invite_all_company',
+            'invited_department_ids', 'invited_employee_ids',
             'attachments', 'created_at'
         ]
+
+    def get_invited_department_ids(self, obj):
+        return list(obj.department_invites.values_list('department_id', flat=True))
+
+    def get_invited_employee_ids(self, obj):
+        return list(obj.employee_invites.values_list('employee_id', flat=True))
 
 
 class NotificationSerializer(serializers.ModelSerializer):

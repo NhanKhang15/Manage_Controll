@@ -24,8 +24,20 @@ class DepartmentTreeSerializer(serializers.ModelSerializer):
         return obj._cached_top_projects
 
     def _direct_tasks(self, obj):
+        # select_related/prefetch_related ngay tại đây: gộp pic/department/assignees/
+        # checklist của cả lô task vào chung 1-2 query, tránh N+1 khi TaskTreeSerializer
+        # đọc từng quan hệ đó cho từng task một.
         if not hasattr(obj, '_cached_direct_tasks'):
-            obj._cached_direct_tasks = list(obj.tasks.filter(project__isnull=True, parent__isnull=True).order_by('order_index'))
+            obj._cached_direct_tasks = list(
+                obj.tasks.filter(project__isnull=True, parent__isnull=True)
+                .select_related('pic', 'department')
+                .prefetch_related(
+                    'assignments__employee', 'checklist_items',
+                    'children__pic', 'children__department',
+                    'children__assignments__employee', 'children__checklist_items',
+                )
+                .order_by('order_index')
+            )
         return obj._cached_direct_tasks
 
     def get_children(self, obj):
@@ -63,7 +75,7 @@ class CompanyTreeSerializer(serializers.ModelSerializer):
         model = Company
         fields = [
             'id', 'type', 'name', 'drive_folder_id', 'drive_folder_url',
-            'order_index', 'is_active', 'childCount', 'children',
+            'order_index', 'is_active', 'due_soon_days', 'childCount', 'children',
         ]
 
     def _sub_companies(self, obj):

@@ -9,6 +9,7 @@ import { ProjectGantt } from "../features/projects/ProjectGantt";
 import { ProjectTimeline } from "../features/projects/ProjectTimeline";
 import { ProjectMindmap } from "../features/projects/ProjectMindmap";
 import { ProjectTaskList } from "../features/projects/ProjectTaskList";
+import { TaskDetailDrawer } from "../features/tasks/TaskDetailDrawer";
 import { WorkspaceBrowser } from "../features/projects/Workspace/WorkspaceBrowser";
 import { AssignmentTree } from "../features/projects/AssignmentTree";
 import { Panel } from "../components/ui/Panel";
@@ -30,6 +31,7 @@ export function ProjectsPage() {
   const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Danh sách công ty cho dropdown: lấy danh sách phẳng siêu nhẹ qua getCompanyOptions()
   useEffect(() => {
@@ -54,7 +56,7 @@ export function ProjectsPage() {
     // (đổi status/PIC/độ khó...) không được unmount WorkspaceBrowser, nếu
     // không sẽ mất vị trí đang chọn (selectedProjectId/taskPath) mỗi lần sửa.
     if (projects.length === 0) setLoading(true);
-    Promise.all([getCompaniesTree(companyId), getEmployees(companyId)])
+    Promise.all([getCompaniesTree(companyId), getEmployees(companyId, { compact: true })])
       .then(([tree, emps]) => {
         const nodes = toProjectNodes(tree, companyId);
         setProjects(nodes);
@@ -106,7 +108,7 @@ export function ProjectsPage() {
   const selectedCompanyName = companies.find((c) => c.id === companyId)?.name ?? "";
 
   function handleSelectTask(t: ProjectTaskNode) {
-    showToast(`Xem chi tiết công việc: ${t.title}`, "default");
+    setSelectedTaskId(t.id);
   }
 
   return (
@@ -173,6 +175,13 @@ export function ProjectsPage() {
           )}
         </>
       )}
+
+      <TaskDetailDrawer
+        taskId={selectedTaskId}
+        companyId={companyId}
+        onClose={() => setSelectedTaskId(null)}
+        onChanged={refetch}
+      />
     </AppShellPage>
   );
 }

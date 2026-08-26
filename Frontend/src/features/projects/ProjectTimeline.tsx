@@ -260,7 +260,7 @@ export function ProjectTimeline({ projects, onSelectTask }: ProjectTimelineProps
             isExpanded: false,
             startDate: tStart,
             endDate: tEnd,
-            progressPercent: t.progressPercent,
+            progressPercent: t.progressPercent ?? 0,
             isRush: isOverdue(t, todayStr),
             isMilestone: !!t.isMilestone,
             status: t.status,

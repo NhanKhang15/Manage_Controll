@@ -54,8 +54,43 @@ export function EventDetailModal({ event, isOpen, onClose, onEdit, onDeleted }: 
             <span>{event.creatorName || "—"}</span>
           </div>
         )}
+        {event.onlineMeetingLink && (
+          <div className="ev-detail-row">
+            <Icon name="link" size={16} />
+            <a href={event.onlineMeetingLink} target="_blank" rel="noreferrer" style={{ color: "var(--brand)", wordBreak: "break-all" }}>
+              {event.onlineMeetingLink}
+            </a>
+          </div>
+        )}
+        {event.needPickupCar && (
+          <div className="ev-detail-row">
+            <span>🚗</span>
+            <span>Tài xế đưa đón: <b>{event.driverName || "Đã chọn xe"}</b></span>
+          </div>
+        )}
+        {event.hasGift && (
+          <div className="ev-detail-row">
+            <span>🎁</span>
+            <span>Quà tặng: {event.giftNote || "Có quà tặng"}</span>
+          </div>
+        )}
 
         {event.content && <div className="ev-detail-content">{event.content}</div>}
+
+        {event.attachments && event.attachments.length > 0 && (
+          <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>📎 File đính kèm:</div>
+            <ul style={{ paddingLeft: 18, fontSize: 12.5, margin: 0 }}>
+              {event.attachments.map((att, idx) => (
+                <li key={idx} style={{ marginBottom: 2 }}>
+                  <a href={att.url} target="_blank" rel="noreferrer" style={{ color: "var(--brand)" }}>
+                    {att.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="ev-detail-actions">
           <Button variant="ghost" onClick={() => onEdit(event)}>

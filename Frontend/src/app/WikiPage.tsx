@@ -7,11 +7,13 @@ import { useToast } from "../components/ui/Toast";
 import { currentUser } from "../mocks/user";
 import { mockWikiPages } from "../mocks/wiki";
 import type { WikiPage as WikiPageItem } from "../types/wiki";
+import { useAuth } from "../auth/AuthContext";
 
 export function WikiPage() {
   const [pages, setPages] = useState<WikiPageItem[]>(mockWikiPages);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { showToast } = useToast();
+  const { employee } = useAuth();
 
   function handleCreate() {
     const title = window.prompt("Tên trang mới:");
@@ -20,7 +22,7 @@ export function WikiPage() {
       id: `wiki-${Date.now()}`,
       title: `📄 ${title.trim()}`,
       content: "Trang mới — bắt đầu soạn nội dung ở đây.",
-      author: currentUser.name,
+      author: employee?.full_name || currentUser.name,
       updatedAt: new Date().toLocaleDateString("vi-VN"),
     };
     setPages((prev) => [page, ...prev]);

@@ -83,9 +83,22 @@ export function CalendarPage() {
         startTime: item.start_time ? item.start_time.slice(0, 5) : undefined,
         endTime: item.end_time ? item.end_time.slice(0, 5) : undefined,
         location: item.location || undefined,
+        onlineMeetingLink: item.online_meeting_link || undefined,
         content: item.content || undefined,
         creatorName: item.creator_name || undefined,
         companyId: item.company,
+        needPickupCar: item.need_pickup_car,
+        driverId: item.driver || undefined,
+        driverName: item.driver_name || undefined,
+        hasGift: item.has_gift,
+        giftNote: item.gift_note || undefined,
+        inviteAllCompany: item.invite_all_company,
+        invitedDepartmentIds: item.invited_department_ids || [],
+        invitedEmployeeIds: item.invited_employee_ids || [],
+        attachments: (item.attachments || []).map((att: any) => ({
+          url: att.file_url || att.url,
+          name: att.file_name || att.name || (att.file_url || att.url || "").split("/").pop() || "Tệp đính kèm",
+        })),
       }));
       setEvents(mapped);
     } catch {
@@ -221,7 +234,7 @@ export function CalendarPage() {
           fetchEvents();
         }}
         defaultDate={modalDate}
-        selectedCompanyId={selectedCompanyId}
+        selectedCompanyId={editingEvent?.companyId || selectedCompanyId}
         editingEvent={editingEvent}
       />
 

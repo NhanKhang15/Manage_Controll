@@ -99,3 +99,8 @@ raw-html/
 Kế hoạch 2 tuần.pdf
 *.sql
 *.db
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+.mcp.json
+/.playwright-mcp/

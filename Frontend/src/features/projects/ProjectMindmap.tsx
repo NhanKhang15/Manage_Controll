@@ -9,7 +9,7 @@ import { getUserId } from "../../auth/tokenStorage";
 
 const nodeTypes = { mm: MindmapNode };
 const ROOT_COLOR = "#64748B";
-const LEVEL_W = 240;
+const LEVEL_W = 360;
 const ROW_H = 46;
 
 type MMKind = "root" | "project" | "task";

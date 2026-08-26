@@ -1,4 +1,4 @@
-import type { TreeNode } from "../../api/companies";
+import type { TreeNode, TaskChecklistItemDto } from "../../api/companies";
 import { colorFromName } from "../../utils/color";
 
 export type TaskStatus = "Ý tưởng" | "Cần làm" | "Đang làm" | "Hoàn thành";
@@ -29,7 +29,8 @@ export interface ProjectTaskNode {
   isMilestone: boolean;
   effortPoints: number | null;
   notes: string;
-  progressPercent: number;
+  progressPercent: number | null;
+  checklist: TaskChecklistItemDto[];
   hasChildren: boolean;
   children: ProjectTaskNode[];
 }
@@ -48,7 +49,7 @@ function toTaskStatus(raw: string | undefined): TaskStatus {
   return (TASK_STATUSES as string[]).includes(raw ?? "") ? (raw as TaskStatus) : "Cần làm";
 }
 
-function toTaskNode(node: TreeNode, projectId: string): ProjectTaskNode {
+export function toTaskNode(node: TreeNode, projectId: string): ProjectTaskNode {
   const children = (node.children ?? []).filter((c) => c.type === "task").map((c) => toTaskNode(c, projectId));
   return {
     id: node.id,
@@ -65,7 +66,8 @@ function toTaskNode(node: TreeNode, projectId: string): ProjectTaskNode {
     isMilestone: !!node.is_milestone,
     effortPoints: node.effort_points ?? null,
     notes: node.notes ?? "",
-    progressPercent: node.progress_percent ?? (node.completed ? 100 : 0),
+    progressPercent: node.progress_percent ?? null,
+    checklist: node.checklist ?? [],
     hasChildren: children.length > 0,
     children,
   };

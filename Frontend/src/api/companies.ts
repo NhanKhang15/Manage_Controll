@@ -15,6 +15,15 @@ export interface PicRef {
   avatar_url: string | null;
 }
 
+export interface TaskChecklistItemDto {
+  id: string;
+  task: string;
+  text: string;
+  is_checked: boolean;
+  order_index: number;
+  created_at: string;
+}
+
 export interface TreeNode {
   id: string;
   type: NodeType;
@@ -35,12 +44,14 @@ export interface TreeNode {
   effort_points?: number | null;
   notes?: string;
   parent?: string | null;
-  progress_percent?: number;
+  progress_percent?: number | null;
+  checklist?: TaskChecklistItemDto[];
   drive_folder_id?: string | null;
   drive_folder_url?: string | null;
   drive_file_id?: string | null;
   drive_file_url?: string | null;
   created_at?: string;
+  due_soon_days?: number;
   children?: TreeNode[];
 }
 
@@ -124,4 +135,18 @@ export async function getDepartments(companyId?: string): Promise<DepartmentOpti
   const query = new URLSearchParams({ ordering: "name_asc" });
   if (companyId) query.append("company_id", companyId);
   return apiFetch<DepartmentOption[]>(`/departments/?${query.toString()}`);
+}
+
+export async function getCompanyAlertSettings(companyId: string): Promise<{ id: string; due_soon_days: number }> {
+  return apiFetch(`/companies/${companyId}/alert-settings/`);
+}
+
+export async function updateCompanyAlertSettings(
+  companyId: string,
+  dueSoonDays: number
+): Promise<{ id: string; due_soon_days: number }> {
+  return apiFetch(`/companies/${companyId}/alert-settings/`, {
+    method: "PATCH",
+    body: JSON.stringify({ due_soon_days: dueSoonDays }),
+  });
 }

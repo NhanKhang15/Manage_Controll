@@ -78,6 +78,27 @@ class Task(models.Model):
         return self.name
 
 
+class TaskChecklistItem(models.Model):
+    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name='checklist_items',
+        db_column='task_id'
+    )
+    text = models.CharField(max_length=500)
+    is_checked = models.BooleanField(default=False)
+    order_index = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'task_checklist_items'
+        ordering = ['order_index', 'created_at']
+
+    def __str__(self):
+        return f"[{'x' if self.is_checked else ' '}] {self.text}"
+
+
 class TaskAssignment(models.Model):
     id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
     task = models.ForeignKey(

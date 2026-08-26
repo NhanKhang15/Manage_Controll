@@ -91,6 +91,7 @@ const ICONS = {
   ),
   templates: link2Icon,
   connections: link2Icon,
+  link: link2Icon,
   leaderboard: (
     <>
       <line x1="18" y1="20" x2="18" y2="10" />

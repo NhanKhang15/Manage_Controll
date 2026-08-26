@@ -2,6 +2,10 @@ import { useState, useEffect, useRef, type FormEvent } from "react";
 import { createDepartment, type TreeNode } from "../../api/companies";
 import { Button } from "../../components/ui/Button";
 
+// Tham chiếu ổn định — tránh mảng mặc định mới mỗi lần render khi prop không
+// được truyền (nằm trong dependency của useEffect bên dưới).
+const EMPTY_COMPANIES: { id: string; name: string }[] = [];
+
 export interface CreateDepartmentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -17,7 +21,7 @@ export function CreateDepartmentModal({
   onSuccess,
   companyId = "",
   companyName = "",
-  availableCompanies = [],
+  availableCompanies = EMPTY_COMPANIES,
 }: CreateDepartmentModalProps) {
   const [name, setName] = useState("");
   const [selectedCompanyId, setSelectedCompanyId] = useState(companyId);

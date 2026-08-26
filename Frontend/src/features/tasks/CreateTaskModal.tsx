@@ -3,6 +3,14 @@ import { createTask } from "../../api/tasks";
 import { getEmployees, type EmployeeListItem } from "../../api/employees";
 import { Button } from "../../components/ui/Button";
 
+// Tham chiếu ổn định cho giá trị mặc định — `= []` trực tiếp trong tham số sẽ
+// tạo mảng MỚI mỗi lần component render khi prop không được truyền, khiến
+// useEffect có mảng đó trong dependency chạy lại vô hạn (setEmployees bên
+// trong effect → re-render → mảng default mới → effect chạy lại → ...).
+const EMPTY_PROJECTS: { id: string; name: string }[] = [];
+const EMPTY_DEPARTMENTS: { id: string; name: string }[] = [];
+const EMPTY_EMPLOYEES: EmployeeListItem[] = [];
+
 export interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -22,9 +30,9 @@ export function CreateTaskModal({
   companyId = "",
   defaultProjectId = "",
   defaultDepartmentId = "",
-  availableProjects = [],
-  availableDepartments = [],
-  availableEmployees = [],
+  availableProjects = EMPTY_PROJECTS,
+  availableDepartments = EMPTY_DEPARTMENTS,
+  availableEmployees = EMPTY_EMPLOYEES,
 }: CreateTaskModalProps) {
   const [name, setName] = useState("");
   const [projectId, setProjectId] = useState(defaultProjectId);
@@ -66,7 +74,7 @@ export function CreateTaskModal({
       if (availableEmployees.length > 0) {
         setEmployees(availableEmployees);
       } else if (companyId) {
-        getEmployees(companyId)
+        getEmployees(companyId, { compact: true })
           .then(setEmployees)
           .catch(() => setEmployees([]));
       }
@@ -368,7 +376,7 @@ export function CreateTaskModal({
           </div>
 
           {/* PIC (Người phụ trách chính) & Due Date Row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div>
               <label
                 style={{
@@ -439,7 +447,7 @@ export function CreateTaskModal({
           </div>
 
           {/* Status & Effort Points Row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: "12px", alignItems: "center" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", alignItems: "center" }}>
             <div>
               <label
                 style={{

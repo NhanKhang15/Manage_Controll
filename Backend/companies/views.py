@@ -66,17 +66,14 @@ def company_tree(request):
         else:
             qs = qs.filter(parent__isnull=True).order_by('order_index')
 
-    qs = qs.prefetch_related(
-        'children',
-        'departments__projects__children',
-        'departments__projects__tasks__assignments__employee',
-        'departments__projects__tasks__pic',
-        'departments__projects__tasks__children',
-        'departments__tasks__assignments__employee',
-        'departments__tasks__pic',
-        'departments__tasks__children',
-    )
-
+    # Không prefetch sâu ở đây nữa: mọi nhánh con trong cây đều được
+    # CompanyTreeSerializer/DepartmentTreeSerializer/ProjectTreeSerializer/
+    # TaskTreeSerializer tự lọc lại (.filter()/.order_by()) ở từng cấp — filter
+    # lại trên 1 quan hệ đã prefetch_related() sẽ bỏ qua cache và bắn query mới,
+    # nên prefetch sâu nhiều tầng như cũ chỉ tốn thêm round-trip mà không dùng
+    # tới. select_related/prefetch_related quan trọng (pic, department,
+    # assignees, checklist) đã được gắn thẳng vào từng hàm _top_tasks/
+    # _direct_tasks/_children ở nơi query thật sự diễn ra.
     serializer = CompanyTreeSerializer(qs, many=True)
     return Response(serializer.data)
 
@@ -131,6 +128,26 @@ def create_company_with_folder(request):
         'children': []
     }
     return Response(res_data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'PATCH'])
+def company_alert_settings(request, pk):
+    try:
+        company = Company.objects.get(id=pk)
+    except Company.DoesNotExist:
+        return Response({'detail': 'Công ty không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'PATCH':
+        try:
+            days = int(request.data.get('due_soon_days'))
+        except (TypeError, ValueError):
+            return Response({'detail': 'due_soon_days phải là số nguyên'}, status=status.HTTP_400_BAD_REQUEST)
+        if days < 0:
+            return Response({'detail': 'due_soon_days không được âm'}, status=status.HTTP_400_BAD_REQUEST)
+        company.due_soon_days = days
+        company.save(update_fields=['due_soon_days'])
+
+    return Response({'id': str(company.id), 'due_soon_days': company.due_soon_days})
 
 
 @api_view(['DELETE'])

@@ -3,6 +3,11 @@ import { createTask } from "../../api/tasks";
 import { getEmployees, type EmployeeListItem } from "../../api/employees";
 import { Button } from "../../components/ui/Button";
 
+// Tham chiếu ổn định — `= []` trực tiếp trong tham số tạo mảng MỚI mỗi lần
+// render khi prop không được truyền, khiến useEffect phụ thuộc mảng đó chạy
+// lại vô hạn (xem giải thích tương tự ở CreateTaskModal.tsx).
+const EMPTY_EMPLOYEES: EmployeeListItem[] = [];
+
 export interface CreateSubtaskModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -24,7 +29,7 @@ export function CreateSubtaskModal({
   onSuccess,
   parentTask,
   companyId = "",
-  availableEmployees = [],
+  availableEmployees = EMPTY_EMPLOYEES,
 }: CreateSubtaskModalProps) {
   const [name, setName] = useState("");
   const [picId, setPicId] = useState("");
@@ -58,7 +63,7 @@ export function CreateSubtaskModal({
       if (availableEmployees.length > 0) {
         setEmployees(availableEmployees);
       } else if (companyId) {
-        getEmployees(companyId)
+        getEmployees(companyId, { compact: true })
           .then(setEmployees)
           .catch(() => setEmployees([]));
       }

@@ -25,8 +25,20 @@ class ProjectTreeSerializer(serializers.ModelSerializer):
         return obj._cached_sub_folders
 
     def _top_tasks(self, obj):
+        # select_related/prefetch_related ngay tại đây: gộp pic/department/assignees/
+        # checklist của cả lô task vào chung 1-2 query, tránh N+1 khi TaskTreeSerializer
+        # đọc từng quan hệ đó cho từng task một.
         if not hasattr(obj, '_cached_top_tasks'):
-            obj._cached_top_tasks = list(obj.tasks.filter(parent__isnull=True).order_by('order_index'))
+            obj._cached_top_tasks = list(
+                obj.tasks.filter(parent__isnull=True)
+                .select_related('pic', 'department')
+                .prefetch_related(
+                    'assignments__employee', 'checklist_items',
+                    'children__pic', 'children__department',
+                    'children__assignments__employee', 'children__checklist_items',
+                )
+                .order_by('order_index')
+            )
         return obj._cached_top_tasks
 
     def get_children(self, obj):

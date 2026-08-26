@@ -3,8 +3,10 @@ import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { MemberChipList } from "../../../components/ui/MemberChipList";
 import { CommentThread, type CommentMessage } from "../../../components/ui/CommentThread";
 import { Button } from "../../../components/ui/Button";
+import { ChecklistEditor } from "../../tasks/ChecklistEditor";
 import { TASK_STATUSES, EFFORT_LABEL, type TaskStatus } from "../types";
 import type { EmployeeListItem } from "../../../api/employees";
+import type { TaskChecklistItemDto } from "../../../api/companies";
 
 export interface WorkspaceRevenueProps {
   value: number | null;
@@ -30,13 +32,17 @@ export interface WorkspaceTaskControls {
   onChangePic: (id: string | null) => void;
   notes: string;
   onSaveNotes: (text: string) => void;
+  checklist: TaskChecklistItemDto[];
+  onToggleChecklistItem: (item: TaskChecklistItemDto) => void;
+  onAddChecklistItem: (text: string) => void;
+  onDeleteChecklistItem: (item: TaskChecklistItemDto) => void;
 }
 
 export interface WorkspaceDetailPanelProps {
   icon: string;
   breadcrumb: string;
   title: string;
-  progress: number;
+  progress: number | null;
   progressColor: string;
   statLine: string;
   revenue?: WorkspaceRevenueProps;
@@ -92,16 +98,32 @@ export function WorkspaceDetailPanel({
         </div>
       )}
 
-      <div className="wk-d-sec">
-        <div className="wk-d-lbl">
-          Tiến độ {task ? "(tự tổng hợp từ việc con)" : ""} <b className="wk-d-pct">{progress}%</b>
+      {progress !== null && (
+        <div className="wk-d-sec">
+          <div className="wk-d-lbl">
+            Tiến độ {task ? "(checklist / việc con)" : ""} <b className="wk-d-pct">{progress}%</b>
+          </div>
+          <ProgressBar progress={progress} color={progressColor} size="big" />
+          <div className="proj-stat-line">{statLine}</div>
         </div>
-        <ProgressBar progress={progress} color={progressColor} size="big" />
-        <div className="proj-stat-line">{statLine}</div>
-      </div>
+      )}
+      {progress === null && (
+        <div className="wk-d-sec">
+          <div className="proj-stat-line">{statLine}</div>
+        </div>
+      )}
 
       {task && (
         <>
+          <div className="wk-d-sec">
+            <ChecklistEditor
+              items={task.checklist}
+              onToggle={task.onToggleChecklistItem}
+              onAdd={task.onAddChecklistItem}
+              onDelete={task.onDeleteChecklistItem}
+            />
+          </div>
+
           <div className="wk-d-sec">
             <div className="wk-d-lbl">👤 Người phụ trách (PIC)</div>
             <select

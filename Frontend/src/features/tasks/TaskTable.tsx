@@ -10,6 +10,8 @@ export interface TaskTableProps {
   onFlag?: (task: TaskItem) => void;
   onProblem?: (task: TaskItem) => void;
   onAutomate?: (task: TaskItem) => void;
+  /** Số ngày trước hạn để tính mốc "Sắp đến hạn" (mặc định 2, cấu hình ở Thiết lập). */
+  dueSoonDays?: number;
 }
 
 function SortableTh({
@@ -38,10 +40,17 @@ function SortableTh({
   );
 }
 
-function AlertTag({ task }: { task: TaskItem }) {
+function AlertTag({ task, dueSoonDays = 2 }: { task: TaskItem; dueSoonDays?: number }) {
   if (task.isProblem) return <span className="alert-tag alert-danger" style={{ background: "#FEF2F2", color: "#EF4444" }}>⚠️ Có vấn đề</span>;
   if (task.completed) return <span className="alert-tag alert-ok">✓ Hoàn tất</span>;
   if (task.overdueDays) return <span className="alert-tag alert-danger">🔴 Trễ hạn</span>;
+  if (task.daysUntilDue !== null && task.daysUntilDue <= dueSoonDays) {
+    return (
+      <span className="alert-tag" style={{ background: "#FFFBEB", color: "#D97706" }}>
+        🟡 Sắp đến hạn{task.daysUntilDue === 0 ? " (hôm nay)" : ` (còn ${task.daysUntilDue} ngày)`}
+      </span>
+    );
+  }
   if (task.isFlagged) return <span className="alert-tag alert-warning" style={{ background: "#FFFBEB", color: "#D97706" }}>🚩 Gắn cờ</span>;
   return <span className="alert-tag alert-muted">—</span>;
 }
@@ -52,7 +61,7 @@ function DueCell({ task }: { task: TaskItem }) {
   return <span className="muted">—</span>;
 }
 
-export function TaskTable({ tasks, sortKey, sortDir, onSort, onSelectTask, onFlag, onProblem, onAutomate }: TaskTableProps) {
+export function TaskTable({ tasks, sortKey, sortDir, onSort, onSelectTask, onFlag, onProblem, onAutomate, dueSoonDays }: TaskTableProps) {
   if (tasks.length === 0) {
     return (
       <div className="table-wrap">
@@ -96,20 +105,24 @@ export function TaskTable({ tasks, sortKey, sortDir, onSort, onSelectTask, onFla
                 {task.department ? <span className="dept-tag">{task.department}</span> : <span className="muted">—</span>}
               </td>
               <td className="t-alert">
-                <AlertTag task={task} />
+                <AlertTag task={task} dueSoonDays={dueSoonDays} />
               </td>
               <td className="t-prog">
-                <div className="tprog">
-                  <div className="tprog-bar">
-                    <i
-                      style={{
-                        width: task.completed ? "100%" : "0%",
-                        background: task.completed ? "#10B981" : "#F59E0B",
-                      }}
-                    />
+                {task.checklistCount > 0 ? (
+                  <div className="tprog">
+                    <div className="tprog-bar">
+                      <i
+                        style={{
+                          width: `${task.checklistPercent ?? 0}%`,
+                          background: task.checklistPercent === 100 ? "#10B981" : "#F59E0B",
+                        }}
+                      />
+                    </div>
+                    <span className="tprog-num">{task.checklistPercent ?? 0}%</span>
                   </div>
-                  <span className="tprog-num">{task.completed ? 100 : 0}%</span>
-                </div>
+                ) : (
+                  <span className="muted">—</span>
+                )}
               </td>
               <td className="t-assignee-col">
                 {task.assigneeName ? (

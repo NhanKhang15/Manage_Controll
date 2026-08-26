@@ -3,6 +3,11 @@ import { createProject } from "../../api/projects";
 import type { TreeNode } from "../../api/companies";
 import { Button } from "../../components/ui/Button";
 
+// Tham chiếu ổn định — tránh mảng mặc định mới mỗi lần render khi prop không
+// được truyền (xem giải thích ở CreateTaskModal.tsx).
+const EMPTY_COMPANIES: { id: string; name: string }[] = [];
+const EMPTY_DEPARTMENTS: { id: string; name: string; company_id?: string }[] = [];
+
 export interface CreateFolderModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -25,8 +30,8 @@ export function CreateFolderModal({
   parentId = "",
   parentName = "",
   parentType = "company",
-  availableCompanies = [],
-  availableDepartments = [],
+  availableCompanies = EMPTY_COMPANIES,
+  availableDepartments = EMPTY_DEPARTMENTS,
 }: CreateFolderModalProps) {
   const [name, setName] = useState("");
   const [status, setStatus] = useState("Triển khai");

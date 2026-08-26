@@ -1,13 +1,15 @@
-from django.db.models import F, Case, When, Value, IntegerField
+from django.db.models import F, Q, Case, When, Value, IntegerField, Max
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Task, TaskAssignment
-from .serializers import TaskFlatSerializer, TaskTreeSerializer
+from .models import Task, TaskAssignment, TaskChecklistItem
+from .serializers import TaskFlatSerializer, TaskTreeSerializer, TaskChecklistItemSerializer
+from .notifications import notify_task_event, _task_company_id, _task_recipients
 from projects.models import Project
 from employees.models import Employee
 from companies.models import Department
+from employees.services import get_employee_from_request
 
 VALID_STATUSES = {choice[0] for choice in Task.STATUS_CHOICES}
 
@@ -121,7 +123,9 @@ def _build_paginated_task_response(qs, request):
     except ValueError:
         offset = 0
 
-    page_qs = qs.select_related('project', 'pic', 'department').prefetch_related('assignments__employee')[offset:offset + limit]
+    page_qs = qs.select_related('project', 'pic', 'department').prefetch_related(
+        'assignments__employee', 'checklist_items', 'children__checklist_items'
+    )[offset:offset + limit]
     serialized_data = TaskFlatSerializer(page_qs, many=True).data
 
     if has_limit_param or has_offset_param or has_page_param:
@@ -254,24 +258,62 @@ def create_task(request):
             except Employee.DoesNotExist:
                 pass
 
+    actor = get_employee_from_request(request)
+    # Không loại actor khỏi người nhận ở đây (khác các notify_task_event khác):
+    # nếu người tạo tự giao việc cho chính mình (PIC/assignee = actor), họ vẫn
+    # phải được báo — trước đây bị loại nên tự giao việc cho mình sẽ im lặng.
+    notify_task_event(
+        task, actor, 'general',
+        f"Việc mới: {task.name}",
+        body=f"{actor.full_name if actor else 'Ai đó'} vừa giao việc này cho bạn.",
+        recipient_ids=_task_recipients(task),
+    )
+
     return Response(TaskTreeSerializer(task).data, status=status.HTTP_201_CREATED)
 
 
-@api_view(['PATCH', 'DELETE'])
+@api_view(['GET', 'PATCH', 'DELETE'])
 def task_detail(request, pk):
     try:
         task = Task.objects.get(id=pk)
     except Task.DoesNotExist:
         return Response({'detail': 'Công việc không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
 
+    if request.method == 'GET':
+        return Response(TaskTreeSerializer(task).data)
+
     if request.method == 'DELETE':
+        from events.models import Notification
+        actor = get_employee_from_request(request)
+        company_id = _task_company_id(task)
+        recipient_ids = _task_recipients(task, exclude_employee_id=actor.id if actor else None)
+        task_name = task.name
+
         if task.drive_file_id:
             from integrations.google_drive import trash_drive_item, run_async_drive_op
             run_async_drive_op(trash_drive_item, task.drive_file_id)
+        task_id_before_delete = task.id
         task.delete()
+
+        if company_id and recipient_ids:
+            Notification.objects.bulk_create([
+                Notification(
+                    company_id=company_id,
+                    recipient_id=rid,
+                    type='general',
+                    icon_key='task',
+                    title=f"Đã xoá việc: {task_name}",
+                    body=f"{actor.full_name if actor else 'Ai đó'} vừa xoá công việc này.",
+                    related_table='tasks',
+                    related_id=str(task_id_before_delete),
+                    triggered_by=actor,
+                )
+                for rid in recipient_ids
+            ])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     data = request.data
+    changed_labels = []
 
     if 'name' in data:
         if not data['name'] or not str(data['name']).strip():
@@ -280,11 +322,15 @@ def task_detail(request, pk):
         if new_name != task.name and task.drive_file_id:
             from integrations.google_drive import rename_drive_item, run_async_drive_op
             run_async_drive_op(rename_drive_item, task.drive_file_id, new_name)
+        if new_name != task.name:
+            changed_labels.append(f"đổi tên thành \"{new_name}\"")
         task.name = new_name
 
     if 'status' in data:
         if data['status'] not in VALID_STATUSES:
             return Response({'detail': f'status không hợp lệ (chỉ nhận {sorted(VALID_STATUSES)})'}, status=status.HTTP_400_BAD_REQUEST)
+        if data['status'] != task.status:
+            changed_labels.append(f"trạng thái → {data['status']}")
         task.status = data['status']
 
     if 'is_completed' in data:
@@ -292,8 +338,10 @@ def task_detail(request, pk):
         task.is_completed = data['is_completed']
         if task.is_completed and not was_completed:
             task.completed_at = timezone.now()
+            changed_labels.append("đánh dấu hoàn thành")
         elif not task.is_completed and was_completed:
             task.completed_at = None
+            changed_labels.append("bỏ đánh dấu hoàn thành")
         if task.is_completed and 'status' not in data:
             task.status = 'Hoàn thành'
         elif not task.is_completed and 'status' not in data:
@@ -303,9 +351,11 @@ def task_detail(request, pk):
         pic_id = data['pic_id']
         if not pic_id:
             task.pic = None
+            changed_labels.append("gỡ người phụ trách")
         else:
             try:
                 task.pic = Employee.objects.get(id=pic_id)
+                changed_labels.append(f"giao cho {task.pic.full_name}")
             except Employee.DoesNotExist:
                 return Response({'detail': 'Người phụ trách không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -318,15 +368,18 @@ def task_detail(request, pk):
                 task.department = Department.objects.get(id=department_id)
             except Department.DoesNotExist:
                 return Response({'detail': 'Phòng ban không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+        changed_labels.append("đổi phòng ban")
 
     if 'is_milestone' in data:
         task.is_milestone = bool(data['is_milestone'])
 
     if 'is_flagged' in data:
         task.is_flagged = bool(data['is_flagged'])
+        changed_labels.append("gắn cờ quan trọng" if task.is_flagged else "gỡ cờ quan trọng")
 
     if 'is_problem' in data:
         task.is_problem = bool(data['is_problem'])
+        changed_labels.append("đánh dấu có vấn đề" if task.is_problem else "gỡ đánh dấu vấn đề")
 
     if 'can_automate' in data:
         task.can_automate = bool(data['can_automate'])
@@ -336,9 +389,11 @@ def task_detail(request, pk):
 
     if 'notes' in data:
         task.notes = (data['notes'] or '').strip()
+        changed_labels.append("cập nhật ghi chú")
 
     if 'due_date' in data:
         task.due_date = data['due_date'] or None
+        changed_labels.append("đổi hạn hoàn thành")
 
     if 'parent_id' in data:
         new_parent_id = data['parent_id']
@@ -357,6 +412,16 @@ def task_detail(request, pk):
             task.project = new_parent.project
 
     task.save()
+
+    if changed_labels:
+        actor = get_employee_from_request(request)
+        notif_type = 'task_completed' if task.is_completed and 'is_completed' in data or data.get('status') == 'Hoàn thành' else 'general'
+        notify_task_event(
+            task, actor, notif_type,
+            f"Cập nhật việc: {task.name}",
+            body=f"{actor.full_name if actor else 'Ai đó'} vừa {', '.join(changed_labels)}.",
+        )
+
     return Response(TaskTreeSerializer(task).data)
 
 
@@ -439,7 +504,10 @@ def my_tasks_view(request):
         return Response({'detail': 'Tài khoản chưa được gắn với nhân viên nào'}, status=status.HTTP_404_NOT_FOUND)
 
     company_id = request.query_params.get('company_id')
-    qs = Task.objects.filter(assignments__employee=employee).distinct()
+    # "Của tôi" = việc mình là người phụ trách (PIC) HOẶC người phối hợp
+    # (assignment) — trước đây chỉ lọc theo assignments nên việc chỉ gán PIC
+    # (không kèm assignee) bị thiếu khỏi Checklist của tôi.
+    qs = Task.objects.filter(Q(pic=employee) | Q(assignments__employee=employee)).distinct()
     if company_id:
         qs = qs.filter(project__company_id=company_id)
 
@@ -497,3 +565,74 @@ def create_task_assignment(request):
         role=role
     )
     return Response({'id': str(assignment.id), 'role': assignment.role}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+def task_checklist(request, task_id):
+    try:
+        task = Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
+        return Response({'detail': 'Công việc không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'POST':
+        text = (request.data.get('text') or '').strip()
+        if not text:
+            return Response({'detail': 'Nội dung checklist không được để trống'}, status=status.HTTP_400_BAD_REQUEST)
+        max_order = task.checklist_items.aggregate(m=Max('order_index'))['m'] or 0
+        item = TaskChecklistItem.objects.create(task=task, text=text, order_index=max_order + 1)
+
+        actor = get_employee_from_request(request)
+        notify_task_event(
+            task, actor, 'general', f"Checklist mới: {task.name}",
+            body=f"{actor.full_name if actor else 'Ai đó'} vừa thêm mục \"{text}\".",
+        )
+        return Response(TaskChecklistItemSerializer(item).data, status=status.HTTP_201_CREATED)
+
+    items = task.checklist_items.all()
+    return Response(TaskChecklistItemSerializer(items, many=True).data)
+
+
+@api_view(['PATCH', 'DELETE'])
+def checklist_item_detail(request, pk):
+    try:
+        item = TaskChecklistItem.objects.get(id=pk)
+    except TaskChecklistItem.DoesNotExist:
+        return Response({'detail': 'Mục checklist không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+    actor = get_employee_from_request(request)
+
+    if request.method == 'DELETE':
+        task, text = item.task, item.text
+        item.delete()
+        notify_task_event(
+            task, actor, 'general', f"Checklist: {task.name}",
+            body=f"{actor.full_name if actor else 'Ai đó'} vừa xoá mục \"{text}\".",
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    data = request.data
+    if 'text' in data:
+        text = (data.get('text') or '').strip()
+        if not text:
+            return Response({'detail': 'Nội dung checklist không được để trống'}, status=status.HTTP_400_BAD_REQUEST)
+        item.text = text
+    if 'is_checked' in data:
+        new_checked = bool(data['is_checked'])
+        if new_checked != item.is_checked:
+            item.is_checked = new_checked
+            remaining = item.task.checklist_items.exclude(id=item.id).filter(is_checked=False).count()
+            all_done = new_checked and remaining == 0
+            notify_task_event(
+                item.task, actor,
+                'task_completed' if all_done else 'general',
+                f"Checklist: {item.task.name}",
+                body=(
+                    f"{actor.full_name if actor else 'Ai đó'} vừa hoàn thành checklist (mục cuối: \"{item.text}\")."
+                    if all_done else
+                    f"{actor.full_name if actor else 'Ai đó'} vừa {'tick' if new_checked else 'bỏ tick'} mục \"{item.text}\"."
+                ),
+            )
+    if 'order_index' in data:
+        item.order_index = data['order_index']
+    item.save()
+    return Response(TaskChecklistItemSerializer(item).data)

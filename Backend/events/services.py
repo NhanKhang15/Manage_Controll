@@ -76,11 +76,13 @@ def update_event(event, data):
     need_pickup_car = data.get('need_pickup_car', event.need_pickup_car)
     has_gift = data.get('has_gift', event.has_gift)
     driver_id = data.get('driver_id', event.driver_id)
+    invite_all_company = data.get('invite_all_company', event.invite_all_company)
 
     if event_type == 'personal':
         need_pickup_car = False
         has_gift = False
         driver_id = None
+        invite_all_company = False
 
     if event_type == 'meeting' and need_pickup_car:
         if not driver_id:
@@ -92,19 +94,45 @@ def update_event(event, data):
     else:
         driver = None
 
-    event.type = event_type
-    event.title = data.get('title', event.title)
-    event.content = data.get('content', event.content)
-    event.event_date = data.get('event_date', event.event_date)
-    event.start_time = data.get('start_time', event.start_time)
-    event.end_time = data.get('end_time', event.end_time)
-    event.location = data.get('location', event.location)
-    event.online_meeting_link = data.get('online_meeting_link', event.online_meeting_link)
-    event.need_pickup_car = need_pickup_car
-    event.driver = driver
-    event.has_gift = has_gift
-    event.gift_note = data.get('gift_note') if has_gift else None
-    event.save()
+    with transaction.atomic():
+        event.type = event_type
+        event.title = data.get('title', event.title)
+        event.content = data.get('content', event.content)
+        event.event_date = data.get('event_date', event.event_date)
+        event.start_time = data.get('start_time', event.start_time)
+        event.end_time = data.get('end_time', event.end_time)
+        event.location = data.get('location', event.location)
+        event.online_meeting_link = data.get('online_meeting_link', event.online_meeting_link)
+        event.need_pickup_car = need_pickup_car
+        event.driver = driver
+        event.has_gift = has_gift
+        event.gift_note = data.get('gift_note') if has_gift else None
+        event.invite_all_company = invite_all_company
+        event.save()
+
+        if event_type == 'personal':
+            EventDepartmentInvite.objects.filter(event=event).delete()
+            EventEmployeeInvite.objects.filter(event=event).delete()
+        else:
+            if 'invited_department_ids' in data or 'invited_employee_ids' in data or 'invite_all_company' in data:
+                EventDepartmentInvite.objects.filter(event=event).delete()
+                EventEmployeeInvite.objects.filter(event=event).delete()
+
+                if not invite_all_company:
+                    invited_dept_ids = data.get('invited_department_ids', [])
+                    for dept_id in invited_dept_ids:
+                        EventDepartmentInvite.objects.create(event=event, department_id=dept_id)
+
+                    invited_emp_ids = data.get('invited_employee_ids', [])
+                    for emp_id in invited_emp_ids:
+                        EventEmployeeInvite.objects.create(event=event, employee_id=emp_id)
+
+        if 'attachment_urls' in data:
+            EventAttachment.objects.filter(event=event).delete()
+            for att in data['attachment_urls']:
+                url = att if isinstance(att, str) else att.get('url')
+                name = att.get('name', url.split('/')[-1]) if isinstance(att, dict) else url.split('/')[-1]
+                EventAttachment.objects.create(event=event, file_url=url, file_name=name)
 
     return event
 

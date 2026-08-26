@@ -3903,7 +3903,7 @@ code {
 }
 
 .table-wrap {
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   max-height: 560px;
   background: var(--panel);
@@ -3933,6 +3933,7 @@ code {
 
 .task-table {
   width: 100%;
+  min-width: 760px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: auto
@@ -4006,6 +4007,7 @@ code {
 .task-table th.col-title,
 .task-table td.t-title {
   width: 28%;
+  min-width: 160px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.4;
@@ -4015,6 +4017,7 @@ code {
 .task-table th.col-proj,
 .task-table td.t-proj {
   width: 17%;
+  min-width: 110px;
   word-break: break-word
 }
 

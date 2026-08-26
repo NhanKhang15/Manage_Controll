@@ -1,14 +1,36 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AppShellPage } from "../layout/AppShellPage";
 import { Panel } from "../components/ui/Panel";
 import { Button } from "../components/ui/Button";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../auth/AuthContext";
 import { clearTokens } from "../auth/tokenStorage";
+import { getCompanyAlertSettings, updateCompanyAlertSettings } from "../api/companies";
 
 export function SettingsPage() {
   const { employee } = useAuth();
+  const companyId = employee?.companies?.[0]?.id ?? null;
   const { showToast } = useToast();
+
+  const [dueSoonDays, setDueSoonDays] = useState(employee?.companies?.[0]?.due_soon_days ?? 2);
+  const [savingAlert, setSavingAlert] = useState(false);
+
+  useEffect(() => {
+    if (!companyId) return;
+    getCompanyAlertSettings(companyId)
+      .then((res) => setDueSoonDays(res.due_soon_days))
+      .catch(() => {});
+  }, [companyId]);
+
+  function handleSaveAlertSettings(e: FormEvent) {
+    e.preventDefault();
+    if (!companyId) return;
+    setSavingAlert(true);
+    updateCompanyAlertSettings(companyId, dueSoonDays)
+      .then(() => showToast("Đã lưu ngưỡng cảnh báo sắp đến hạn", "success"))
+      .catch(() => showToast("Lưu ngưỡng cảnh báo thất bại", "danger"))
+      .finally(() => setSavingAlert(false));
+  }
 
   function handleLogout() {
     clearTokens();
@@ -111,6 +133,29 @@ export function SettingsPage() {
           <span>Của tôi hôm nay</span>
           <b>0 credit · 0 lượt hỏi AI</b>
         </div>
+      </Panel>
+
+      {/* Panel: Cảnh báo sắp đến hạn (áp dụng cho tab Công việc) */}
+      <Panel>
+        <div className="panel-h">🟡 Cảnh báo sắp đến hạn</div>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>
+          Việc chưa xong, còn ít hơn hoặc bằng số ngày này tới hạn, sẽ hiện cảnh báo màu vàng "Sắp đến hạn" trong bảng Công việc.
+        </p>
+        <form onSubmit={handleSaveAlertSettings} style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <label style={{ fontSize: 13 }}>
+            Số ngày trước hạn
+            <input
+              type="number"
+              min={0}
+              value={dueSoonDays}
+              onChange={(e) => setDueSoonDays(Number(e.target.value))}
+              style={{ display: "block", marginTop: 4, width: 100 }}
+            />
+          </label>
+          <Button variant="primary" size="sm" type="submit" disabled={savingAlert || !companyId}>
+            {savingAlert ? "Đang lưu..." : "Lưu ngưỡng"}
+          </Button>
+        </form>
       </Panel>
 
       {/* Panel 4: Cấu hình tổ chức */}

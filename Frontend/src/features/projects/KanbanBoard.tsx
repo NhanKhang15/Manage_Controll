@@ -53,9 +53,11 @@ export function KanbanBoard({ tasks, onSelectTask, onChangeStatus }: KanbanBoard
                   {task.isMilestone && "🚩 "}
                   {task.title}
                 </div>
-                <div className="a-progress" style={{ width: "100%", marginTop: 8 }}>
-                  <span style={{ width: `${task.progressPercent}%`, background: "var(--brand)" }} />
-                </div>
+                {task.progressPercent !== null && (
+                  <div className="a-progress" style={{ width: "100%", marginTop: 8 }}>
+                    <span style={{ width: `${task.progressPercent}%`, background: "var(--brand)" }} />
+                  </div>
+                )}
                 <div className="kanban-card-foot">
                   {(task.picName ?? task.assigneeNames[0]) && <Avatar name={task.picName ?? task.assigneeNames[0]} size={22} />}
                   <span className="muted" style={{ fontSize: 12 }}>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DriveConnectBanner } from "./DriveConnectBanner";
 import { WorkspaceColumn } from "./WorkspaceColumn";
 import { WorkspaceItem } from "./WorkspaceItem";
@@ -6,8 +6,11 @@ import { WorkspaceDetailPanel } from "./WorkspaceDetailPanel";
 import { useToast } from "../../../components/ui/Toast";
 import type { CommentMessage } from "../../../components/ui/CommentThread";
 import { currentUser } from "../../../mocks/user";
+import { useAuth } from "../../../auth/AuthContext";
 import type { EmployeeListItem } from "../../../api/employees";
 import type { UpdateTaskData } from "../../../api/tasks";
+import { addChecklistItem, updateChecklistItem, deleteChecklistItem } from "../../../api/tasks";
+import type { TaskChecklistItemDto } from "../../../api/companies";
 import { STATUS_COLOR, findTaskById, projectColor, type ProjectNode, type ProjectTaskNode, type TaskStatus } from "../types";
 import { CreateFolderModal } from "../CreateFolderModal";
 import { CreateTaskModal } from "../../tasks/CreateTaskModal";
@@ -20,8 +23,8 @@ function formatDueShort(iso: string): string {
   return `${d}-${m}-${y}`;
 }
 
-function makeMessage(text: string): CommentMessage {
-  return { id: `cmt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, author: currentUser.name, text, time: "Vừa xong" };
+function makeMessage(text: string, authorName: string): CommentMessage {
+  return { id: `cmt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, author: authorName, text, time: "Vừa xong" };
 }
 
 /**
@@ -51,6 +54,8 @@ export function WorkspaceBrowser({
   onRefetch,
 }: WorkspaceBrowserProps) {
   const { showToast } = useToast();
+  const { employee } = useAuth();
+  const authorName = employee?.full_name || currentUser.name;
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id ?? "");
   const [taskPath, setTaskPath] = useState<string[]>([]);
   const [internalMessages, setInternalMessages] = useState<Record<string, CommentMessage[]>>({});
@@ -74,11 +79,29 @@ export function WorkspaceBrowser({
   }
 
   function sendInternal(nodeKey: string, text: string) {
-    setInternalMessages((prev) => ({ ...prev, [nodeKey]: [...(prev[nodeKey] ?? []), makeMessage(text)] }));
+    setInternalMessages((prev) => ({ ...prev, [nodeKey]: [...(prev[nodeKey] ?? []), makeMessage(text, authorName)] }));
   }
 
   function sendShared(nodeKey: string, text: string) {
-    setSharedMessages((prev) => ({ ...prev, [nodeKey]: [...(prev[nodeKey] ?? []), makeMessage(text)] }));
+    setSharedMessages((prev) => ({ ...prev, [nodeKey]: [...(prev[nodeKey] ?? []), makeMessage(text, authorName)] }));
+  }
+
+  function handleAddChecklistItem(taskId: string, text: string) {
+    addChecklistItem(taskId, text)
+      .then(() => onRefetch?.())
+      .catch(() => showToast("Không thêm được mục checklist", "danger"));
+  }
+
+  function handleToggleChecklistItem(item: TaskChecklistItemDto) {
+    updateChecklistItem(item.id, { is_checked: !item.is_checked })
+      .then(() => onRefetch?.())
+      .catch(() => showToast("Không cập nhật được checklist", "danger"));
+  }
+
+  function handleDeleteChecklistItem(item: TaskChecklistItemDto) {
+    deleteChecklistItem(item.id)
+      .then(() => onRefetch?.())
+      .catch(() => showToast("Không xoá được mục checklist", "danger"));
   }
 
   function handleOpenAddTask(parentTask: ProjectTaskNode | null) {
@@ -93,6 +116,11 @@ export function WorkspaceBrowser({
       setIsTaskModalOpen(true);
     }
   }
+
+  // Mảng ổn định qua các lần render (không đổi khi `projects` không đổi) —
+  // truyền thẳng .map() làm prop mỗi lần render sẽ tạo mảng mới, khiến
+  // useEffect phụ thuộc mảng này trong CreateTaskModal chạy lại liên tục.
+  const projectOptions = useMemo(() => projects.map((p) => ({ id: p.id, name: p.name })), [projects]);
 
   // Dựng các cột Miller theo đường đã chọn — mỗi cột là children của node được chọn ở cột trước.
   const columns: { tasks: ProjectTaskNode[]; parentTask: ProjectTaskNode | null }[] = [];
@@ -145,6 +173,10 @@ export function WorkspaceBrowser({
           onChangePic: (id) => onUpdateTask(deepestTask.id, { pic_id: id }),
           notes: deepestTask.notes,
           onSaveNotes: (text) => onUpdateTask(deepestTask.id, { notes: text }),
+          checklist: deepestTask.checklist,
+          onToggleChecklistItem: handleToggleChecklistItem,
+          onAddChecklistItem: (text) => handleAddChecklistItem(deepestTask.id, text),
+          onDeleteChecklistItem: handleDeleteChecklistItem,
         }}
       />
     );
@@ -255,7 +287,7 @@ export function WorkspaceBrowser({
         }}
         companyId={companyId}
         defaultProjectId={selectedProject?.id}
-        availableProjects={projects.map((p) => ({ id: p.id, name: p.name }))}
+        availableProjects={projectOptions}
         availableEmployees={employees}
       />
 

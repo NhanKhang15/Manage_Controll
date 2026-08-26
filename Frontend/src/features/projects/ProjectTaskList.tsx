@@ -60,7 +60,7 @@ export function ProjectTaskList({ tasks, onSelectTask }: ProjectTaskListProps) {
                 )}
               </td>
               <td style={{ padding: "12px 16px", color: "var(--muted)" }}>{task.dueDate ?? "—"}</td>
-              <td style={{ padding: "12px 16px" }}>{task.progressPercent}%</td>
+              <td style={{ padding: "12px 16px" }}>{task.progressPercent !== null ? `${task.progressPercent}%` : "—"}</td>
               <td style={{ padding: "12px 16px" }}>
                 <Chip label={task.status} variant={STATUS_VARIANT[task.status]} />
               </td>

@@ -7,16 +7,18 @@ export interface TaskChecklistProps {
   onFlagProblem: (task: TaskItem) => void;
 }
 
-/** Panel checklist: N việc gần đến hạn nhất, chưa xong, toàn công ty (chưa gắn được theo từng nhân viên). */
+/** Panel checklist: N việc "của tôi" (mình là PIC hoặc người phối hợp) gần đến hạn
+ * nhất, chưa xong — xem my_tasks_view (Backend/tasks/views.py). Tick hoàn thành sẽ
+ * PATCH is_completed, tự động báo cho những người liên quan (notify_task_event). */
 export function TaskChecklist({ tasks, onToggle, onFlagProblem }: TaskChecklistProps) {
   if (tasks.length === 0) return null;
 
   return (
     <Panel>
       <div className="panel-h">
-        ✅ Checklist việc cần làm{" "}
+        ✅ Checklist của tôi{" "}
         <small className="muted">
-          ({tasks.length} việc gần đến hạn nhất — toàn công ty, tick để đánh dấu hoàn thành)
+          ({tasks.length} việc gần đến hạn nhất bạn phụ trách, tick để đánh dấu hoàn thành)
         </small>
       </div>
       {tasks.map((task) => (

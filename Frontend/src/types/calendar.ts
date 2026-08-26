@@ -16,7 +16,17 @@ export interface CalendarEventItem {
   startTime?: string;
   endTime?: string;
   location?: string;
+  onlineMeetingLink?: string;
   content?: string;
   creatorName?: string;
   companyId?: string;
+  needPickupCar?: boolean;
+  driverId?: string;
+  driverName?: string;
+  hasGift?: boolean;
+  giftNote?: string;
+  inviteAllCompany?: boolean;
+  invitedDepartmentIds?: string[];
+  invitedEmployeeIds?: string[];
+  attachments?: { url: string; name: string }[];
 }

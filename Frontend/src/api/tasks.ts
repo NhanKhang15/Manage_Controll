@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import type { TaskAssigneeRef, PicRef, TreeNode } from "./companies";
+import type { TaskAssigneeRef, PicRef, TreeNode, TaskChecklistItemDto } from "./companies";
 
 export interface FlatTask {
   id: string;
@@ -8,7 +8,7 @@ export interface FlatTask {
   completed: boolean;
   completed_at: string | null;
   due_date: string | null;
-  project: { id: string; name: string };
+  project: { id: string; name: string } | null;
   assignees: TaskAssigneeRef[];
   department: string | null;
   department_id: string | null;
@@ -20,6 +20,8 @@ export interface FlatTask {
   effort_points: number | null;
   notes: string;
   parent: string | null;
+  checklist_percent: number | null;
+  checklist_count: number;
 }
 
 export interface CreateTaskData {
@@ -127,6 +129,37 @@ export async function reorderTasks(data: { taskIds: string[]; newProjectId: stri
 
 export async function deleteTask(id: string): Promise<void> {
   return apiFetch<void>(`/tasks/${id}/`, {
+    method: "DELETE",
+  });
+}
+
+export async function getTaskDetail(id: string): Promise<TreeNode> {
+  return apiFetch<TreeNode>(`/tasks/${id}/`);
+}
+
+export async function getTaskChecklist(taskId: string): Promise<TaskChecklistItemDto[]> {
+  return apiFetch<TaskChecklistItemDto[]>(`/tasks/${taskId}/checklist/`);
+}
+
+export async function addChecklistItem(taskId: string, text: string): Promise<TaskChecklistItemDto> {
+  return apiFetch<TaskChecklistItemDto>(`/tasks/${taskId}/checklist/`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function updateChecklistItem(
+  itemId: string,
+  data: { text?: string; is_checked?: boolean; order_index?: number }
+): Promise<TaskChecklistItemDto> {
+  return apiFetch<TaskChecklistItemDto>(`/checklist-items/${itemId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteChecklistItem(itemId: string): Promise<void> {
+  return apiFetch<void>(`/checklist-items/${itemId}/`, {
     method: "DELETE",
   });
 }

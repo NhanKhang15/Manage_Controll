@@ -29,7 +29,7 @@ export function ProjectGantt({ tasks, viewMode, onSelectTask }: ProjectGanttProp
       name: t.title,
       start,
       end: end > start ? end : new Date(start.getTime() + 86400000),
-      progress: t.progressPercent,
+      progress: t.progressPercent ?? 0,
       styles: { progressColor: STATUS_COLOR[t.status], backgroundColor: `${STATUS_COLOR[t.status]}55` },
     };
   });

@@ -20,6 +20,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
                 'name': link.company.name,
                 'role_in_company': link.role_in_company,
                 'can_approve_proposals': link.can_approve_proposals,
+                'due_soon_days': link.company.due_soon_days,
             }
             for link in links
         ]

@@ -11,6 +11,7 @@ const ICON_MAP: Record<string, string> = {
   medal: "🏅",
   hand: "🤚",
   clock_red: "⏰",
+  task: "🗂️",
 };
 
 export function NotificationBell() {

@@ -13,6 +13,9 @@ export interface TaskItem {
   dueDateIso: string | null;
   dueDateLabel: string | null;
   overdueDays: number | null;
+  daysUntilDue: number | null;
+  checklistPercent: number | null;
+  checklistCount: number;
   assigneeName: string | null;
   department: string | null;
   isFlagged: boolean;
@@ -40,6 +43,18 @@ function daysOverdue(dueDateIso: string | null): number | null {
   return diffDays > 0 ? diffDays : null;
 }
 
+/** Số ngày còn lại tới hạn (>=0), null nếu không có hạn hoặc đã trễ. */
+function daysUntilDue(dueDateIso: string | null): number | null {
+  if (!dueDateIso) return null;
+  const due = new Date(dueDateIso);
+  if (Number.isNaN(due.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  due.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+  return diffDays >= 0 ? diffDays : null;
+}
+
 function primaryAssigneeName(assignees: TaskAssigneeRef[] | undefined): string | null {
   if (!assignees || assignees.length === 0) return null;
   const primary = assignees.find((a) => a.role === "assignee") ?? assignees[0];
@@ -62,6 +77,9 @@ export function flattenTasks(nodes: TreeNode[], project: ProjectOption | null = 
         dueDateIso: node.due_date ?? null,
         dueDateLabel: node.due_date ? new Date(node.due_date).toLocaleDateString("vi-VN") : null,
         overdueDays: daysOverdue(node.due_date ?? null),
+        daysUntilDue: daysUntilDue(node.due_date ?? null),
+        checklistPercent: node.progress_percent ?? null,
+        checklistCount: node.checklist?.length ?? 0,
         assigneeName: primaryAssigneeName(node.assignees),
         department: node.department ?? null,
         isFlagged: !!node.is_flagged,
@@ -81,14 +99,17 @@ export function fromFlatTask(t: FlatTask): TaskItem {
   return {
     id: t.id,
     title: t.name,
-    projectId: t.project.id,
-    projectName: t.project.name,
-    projectColor: colorFromName(t.project.name),
+    projectId: t.project?.id ?? null,
+    projectName: t.project?.name ?? null,
+    projectColor: t.project ? colorFromName(t.project.name) : "#8A93A6",
     completed: t.completed,
     completedAtIso: t.completed_at,
     dueDateIso: t.due_date,
     dueDateLabel: t.due_date ? new Date(t.due_date).toLocaleDateString("vi-VN") : null,
     overdueDays: daysOverdue(t.due_date),
+    daysUntilDue: daysUntilDue(t.due_date),
+    checklistPercent: t.checklist_percent,
+    checklistCount: t.checklist_count,
     assigneeName: primaryAssigneeName(t.assignees),
     department: t.department,
     isFlagged: !!t.is_flagged,

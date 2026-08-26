@@ -19,7 +19,7 @@ def get_events(request):
 
     current_emp = get_employee_from_request(request)
 
-    queryset = Event.objects.all()
+    queryset = Event.objects.prefetch_related('attachments', 'department_invites', 'employee_invites').select_related('driver', 'created_by')
 
     if company_id:
         queryset = queryset.filter(company_id=company_id)
@@ -73,12 +73,16 @@ def create_event_view(request):
         return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(['PATCH', 'DELETE'])
+@api_view(['GET', 'PATCH', 'DELETE'])
 def event_detail_view(request, pk):
     try:
-        event = Event.objects.get(id=pk)
+        event = Event.objects.prefetch_related('attachments', 'department_invites', 'employee_invites').select_related('driver', 'created_by').get(id=pk)
     except Event.DoesNotExist:
         return Response({'detail': 'Sự kiện không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = EventSerializer(event)
+        return Response(serializer.data)
 
     if request.method == 'DELETE':
         event.delete()

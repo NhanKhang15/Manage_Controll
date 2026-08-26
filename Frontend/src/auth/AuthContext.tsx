@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { getMe, type AuthEmployee } from "../api/auth";
 import { getAccessToken, clearTokens, getUserId, setUserId } from "./tokenStorage";
 import { isTokenValid } from "./jwt";
@@ -115,5 +115,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
-  return <AuthContext.Provider value={{ employee, loading, refetch }}>{children}</AuthContext.Provider>;
+  // Memo hoá value: nếu không, mỗi lần AuthProvider render (dù employee/loading
+  // không đổi) sẽ tạo object mới -> mọi consumer useAuth() re-render theo, có
+  // thể khuếch đại thành vòng lặp re-render nếu 1 consumer đó dùng giá trị
+  // (mảng/object literal) không ổn định trong dependency của useEffect khác.
+  const value = useMemo(() => ({ employee, loading, refetch }), [employee, loading, refetch]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

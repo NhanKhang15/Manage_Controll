@@ -17,6 +17,10 @@ class Company(models.Model):
     drive_folder_url = models.CharField(max_length=500, null=True, blank=True)
     order_index = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    due_soon_days = models.IntegerField(
+        default=2,
+        help_text='Số ngày trước hạn để hiện cảnh báo "Sắp đến hạn" (màu vàng) cho việc chưa xong'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
