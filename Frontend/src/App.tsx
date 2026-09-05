@@ -38,6 +38,7 @@ import { GenericPage } from "./app/GenericPage";
 
 import { ClientsPage } from "./app/ClientsPage";
 import { PeoplePage } from "./app/PeoplePage";
+import { ApplyPage } from "./app/ApplyPage";
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/apply/:token" element={<ApplyPage />} />
 
           <Route element={<RequireAuth />}>
             <Route path="/assistant" element={<AssistantPage />} />

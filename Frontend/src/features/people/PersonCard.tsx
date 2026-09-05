@@ -1,12 +1,14 @@
-import { useState } from "react";
 import type { Person } from "../../types/people";
+import type { ReactionType } from "../../api/employees";
 import { Avatar } from "../../components/ui/Avatar";
 import { Chip } from "../../components/ui/Chip";
 import { Button } from "../../components/ui/Button";
 
 interface PersonCardProps {
   person: Person;
+  isSelf: boolean;
   onBookMeeting: (person: Person) => void;
+  onReact: (person: Person, type: ReactionType) => void;
 }
 
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -18,30 +20,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-export function PersonCard({ person, onBookMeeting }: PersonCardProps) {
-  const [likes, setLikes] = useState(person.likes);
-  const [dislikes, setDislikes] = useState(person.dislikes);
-  const [userLiked, setUserLiked] = useState(Boolean(person.userLiked));
-  const [userDisliked, setUserDisliked] = useState(Boolean(person.userDisliked));
-
-  const handleLike = () => {
-    setLikes((value) => value + (userLiked ? -1 : 1));
-    setUserLiked((value) => !value);
-    if (userDisliked) {
-      setDislikes((value) => value - 1);
-      setUserDisliked(false);
-    }
-  };
-
-  const handleDislike = () => {
-    setDislikes((value) => value + (userDisliked ? -1 : 1));
-    setUserDisliked((value) => !value);
-    if (userLiked) {
-      setLikes((value) => value - 1);
-      setUserLiked(false);
-    }
-  };
-
+export function PersonCard({ person, isSelf, onBookMeeting, onReact }: PersonCardProps) {
   return (
     <div className="person-card" data-uid={person.id} data-uname={person.name}>
       <div className="person-top">
@@ -51,15 +30,17 @@ export function PersonCard({ person, onBookMeeting }: PersonCardProps) {
           <div className="person-title">{person.title}</div>
           <div className="person-tags">
             <Chip label={person.dept} />
-            <Chip label={person.role} variant="todo" />
+            {person.role ? <Chip label={person.role} variant="todo" /> : null}
           </div>
         </div>
       </div>
 
       <div className="person-info">
-        <InfoRow label="✉️ Email">
-          <a href={`mailto:${person.email}`}>{person.email}</a>
-        </InfoRow>
+        {person.email ? (
+          <InfoRow label="✉️ Email">
+            <a href={`mailto:${person.email}`}>{person.email}</a>
+          </InfoRow>
+        ) : null}
         {person.phone ? (
           <InfoRow label="📞 SĐT">
             <a href={`tel:${person.phone}`}>{person.phone}</a>
@@ -85,22 +66,26 @@ export function PersonCard({ person, onBookMeeting }: PersonCardProps) {
       </div>
 
       <div className="person-foot">
-        <span title="Đánh giá">★ {person.rating}</span>
-        <span title="Điểm">{person.level}</span>
+        <span title="Đánh giá">★ {person.rating.toFixed(1)}</span>
+        <span title="Điểm">Lv{person.level}</span>
       </div>
 
-      <div className="peer-rate">
-        <button type="button" className={`pr-btn like ${userLiked ? "on" : ""}`} onClick={handleLike}>
-          👍 <span className="pr-c pr-sat">{likes}</span>
-        </button>
-        <button type="button" className={`pr-btn dislike ${userDisliked ? "on" : ""}`} onClick={handleDislike}>
-          👎 <span className="pr-c pr-uns">{dislikes}</span>
-        </button>
-      </div>
+      {isSelf ? null : (
+        <>
+          <div className="peer-rate">
+            <button type="button" className={`pr-btn like ${person.userLiked ? "on" : ""}`} onClick={() => onReact(person, "like")}>
+              👍 <span className="pr-c pr-sat">{person.likes}</span>
+            </button>
+            <button type="button" className={`pr-btn dislike ${person.userDisliked ? "on" : ""}`} onClick={() => onReact(person, "dislike")}>
+              👎 <span className="pr-c pr-uns">{person.dislikes}</span>
+            </button>
+          </div>
 
-      <Button variant="ghost" size="sm" onClick={() => onBookMeeting(person)}>
-        📅 Đặt lịch họp
-      </Button>
+          <Button variant="ghost" size="sm" onClick={() => onBookMeeting(person)}>
+            📅 Đặt lịch họp
+          </Button>
+        </>
+      )}
     </div>
   );
 }

@@ -5,19 +5,18 @@ import { AuthBrand } from "../features/auth/AuthBrand";
 import { RegisterForm, type RegisterFormValues } from "../features/auth/RegisterForm";
 import { useToast } from "../components/ui/Toast";
 import { register } from "../api/auth";
-import { setTokens } from "../auth/tokenStorage";
-import { useAuth } from "../auth/AuthContext";
 
 const EMPTY_VALUES: RegisterFormValues = { name: "", email: "", password: "" };
 
 /**
  * RegisterPage
  * Trang Đăng ký tài khoản mới — không dùng Sidebar/Topbar.
+ * Tài khoản đăng ký xong ở trạng thái chờ duyệt (xem employees.auth_views.register_view),
+ * nên không tự đăng nhập vào app được — chỉ báo thành công rồi quay lại trang đăng nhập.
  * Thẻ HTML gốc: <body class=login-body>
  */
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { refetch } = useAuth();
   const [values, setValues] = useState<RegisterFormValues>(EMPTY_VALUES);
   const [submitting, setSubmitting] = useState(false);
   const { showToast } = useToast();
@@ -26,12 +25,10 @@ export function RegisterPage() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const { access, refresh } = await register(values.name, values.email, values.password);
-      setTokens(access, refresh);
-      await refetch();
-      showToast("Đăng ký thành công! Tài khoản của bạn đã sẵn sàng sử dụng.", "success");
+      const { detail } = await register(values.name, values.email, values.password);
+      showToast(detail, "success");
       setValues(EMPTY_VALUES);
-      navigate("/assistant");
+      navigate("/login");
     } catch (err: any) {
       showToast(err.message || "Đăng ký thất bại", "danger");
     } finally {

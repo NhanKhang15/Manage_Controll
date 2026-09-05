@@ -1,5 +1,4 @@
 import traceback
-from django.conf import settings
 from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -87,26 +86,26 @@ def create_company_with_folder(request):
         return Response({'detail': 'Tên công ty không được để trống'}, status=status.HTTP_400_BAD_REQUEST)
 
     parent_company = None
-    parent_folder_id = getattr(settings, 'GOOGLE_DRIVE_ROOT_FOLDER_ID', None)
+    parent_folder_id = None
 
     if parent_id:
         try:
             parent_company = Company.objects.get(id=parent_id)
-            if parent_company.drive_folder_id:
-                parent_folder_id = parent_company.drive_folder_id
+            parent_folder_id = parent_company.drive_folder_id
         except Company.DoesNotExist:
             return Response({'detail': 'Công ty cha không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
 
     drive_folder_id = None
     drive_folder_url = None
 
-    if parent_folder_id:
+    # Công ty gốc mới tạo (không có parent_id) chưa kết nối Drive riêng —
+    # folder gốc của nó sẽ được tạo sau, khi kết nối Google Drive (Thiết lập).
+    # Chỉ tạo folder ngay nếu là công ty con của 1 công ty cha đã có folder.
+    if parent_company and parent_folder_id:
         try:
-            print(f"Creating Drive folder '{name}' inside parent '{parent_folder_id}'...")
-            drive_res = create_drive_folder(name.strip(), parent_folder_id)
+            drive_res = create_drive_folder(parent_company.drive_account_company_id, name.strip(), parent_folder_id)
             drive_folder_id = drive_res.get('id')
             drive_folder_url = drive_res.get('webViewLink')
-            print(f"Drive folder created successfully: id={drive_folder_id}, url={drive_folder_url}")
         except Exception as e:
             print(f"Error creating Google Drive folder: {e}")
             traceback.print_exc()
@@ -156,7 +155,7 @@ def delete_company(request, pk):
         company = Company.objects.get(id=pk)
         if company.drive_folder_id:
             from integrations.google_drive import trash_drive_item, run_async_drive_op
-            run_async_drive_op(trash_drive_item, company.drive_folder_id)
+            run_async_drive_op(trash_drive_item, company.drive_account_company_id, company.drive_folder_id)
         company.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     except Company.DoesNotExist:
@@ -179,11 +178,13 @@ def get_departments(request):
 
         drive_folder_id = None
         drive_folder_url = None
-        parent_folder_id = company.drive_folder_id or getattr(settings, 'GOOGLE_DRIVE_ROOT_FOLDER_ID', None)
+        from integrations.google_drive import get_root_folder_id
+        drive_company_id = company.drive_account_company_id
+        parent_folder_id = company.drive_folder_id or get_root_folder_id(drive_company_id)
         if parent_folder_id:
             try:
                 from integrations.google_drive import create_drive_folder
-                drive_res = create_drive_folder(f"Phòng {name.strip()}", parent_folder_id)
+                drive_res = create_drive_folder(drive_company_id, f"Phòng {name.strip()}", parent_folder_id)
                 drive_folder_id = drive_res.get('id')
                 drive_folder_url = drive_res.get('webViewLink')
             except Exception as e:
@@ -251,7 +252,7 @@ def delete_department(request, pk):
         dept = Department.objects.get(id=pk)
         if dept.drive_folder_id:
             from integrations.google_drive import trash_drive_item, run_async_drive_op
-            run_async_drive_op(trash_drive_item, dept.drive_folder_id)
+            run_async_drive_op(trash_drive_item, dept.company.drive_account_company_id, dept.drive_folder_id)
         dept.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     except Department.DoesNotExist:
@@ -261,6 +262,13 @@ def delete_department(request, pk):
 @api_view(['POST'])
 def sync_drive_view(request):
     company_id = request.data.get('company_id')
+    if not company_id:
+        return Response({'detail': 'Thiếu company_id'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        company = Company.objects.get(id=company_id)
+    except Company.DoesNotExist:
+        return Response({'detail': 'Công ty không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
     from integrations.google_drive import sync_entire_tree_to_drive
-    res = sync_entire_tree_to_drive(company_id=company_id)
+    res = sync_entire_tree_to_drive(company.drive_account_company_id)
     return Response(res, status=status.HTTP_200_OK if res.get('success') else status.HTTP_400_BAD_REQUEST)

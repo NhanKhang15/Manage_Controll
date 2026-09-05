@@ -66,6 +66,9 @@ recovery-codes.txt
 # Google service account credentials
 map-test-457814-c86683153f9a.json
 
+# Google OAuth client secret (downloaded from Google Cloud Console)
+client_secret_*.json
+
 # ==========================================
 # 5. IDE, Editors & OS Files
 # ==========================================

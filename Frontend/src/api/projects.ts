@@ -28,6 +28,7 @@ export interface ProjectOptionItem {
   company_id: string;
   department_id?: string | null;
   parent_id?: string | null;
+  progress_percent: number;
 }
 
 export async function getProjectOptions(companyId?: string, departmentId?: string): Promise<ProjectOptionItem[]> {

@@ -1,10 +1,12 @@
-from django.conf import settings
+from django.db.models import Prefetch
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Project
 from companies.models import Company, Department
-from integrations.google_drive import create_drive_folder, trash_drive_item, run_async_drive_op
+from integrations.google_drive import create_drive_folder, get_root_folder_id, trash_drive_item, run_async_drive_op
+from tasks.models import Task
+from tasks.serializers import progress_percent_of_tasks
 
 
 @api_view(['POST'])
@@ -48,6 +50,7 @@ def create_project(request):
         return Response({'detail': 'Không xác định được công ty tương ứng'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Xác định parent folder trên Google Drive
+    drive_company_id = company.drive_account_company_id
     drive_folder_id = None
     drive_folder_url = None
     parent_drive_folder_id = None
@@ -58,11 +61,11 @@ def create_project(request):
     elif company and company.drive_folder_id:
         parent_drive_folder_id = company.drive_folder_id
     else:
-        parent_drive_folder_id = getattr(settings, 'GOOGLE_DRIVE_ROOT_FOLDER_ID', None)
+        parent_drive_folder_id = get_root_folder_id(drive_company_id)
 
     if parent_drive_folder_id:
         try:
-            drive_res = create_drive_folder(name.strip(), parent_drive_folder_id)
+            drive_res = create_drive_folder(drive_company_id, name.strip(), parent_drive_folder_id)
             drive_folder_id = drive_res.get('id')
             drive_folder_url = drive_res.get('webViewLink')
         except Exception as e:
@@ -101,7 +104,7 @@ def delete_project(request, pk):
     try:
         project = Project.objects.get(id=pk)
         if project.drive_folder_id:
-            run_async_drive_op(trash_drive_item, project.drive_folder_id)
+            run_async_drive_op(trash_drive_item, project.company.drive_account_company_id, project.drive_folder_id)
         project.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     except Project.DoesNotExist:
@@ -118,11 +121,27 @@ def project_options(request):
 
     qs = Project.objects.all()
     if company_id:
-        qs = qs.filter(company_id=company_id)
+        # Gộp cả công ty con (đệ quy) — khớp đúng số folder hiển thị bên trang
+        # Dự án → Thư mục (company_tree cũng duyệt sub-companies đệ quy).
+        company_ids = [company_id]
+        frontier = [company_id]
+        while frontier:
+            child_ids = list(Company.objects.filter(parent_id__in=frontier).values_list('id', flat=True))
+            company_ids.extend(child_ids)
+            frontier = child_ids
+        qs = qs.filter(company_id__in=company_ids)
     if department_id:
         qs = qs.filter(department_id=department_id)
 
-    qs = qs.order_by('order_index', 'name')
+    qs = qs.order_by('order_index', 'name').prefetch_related(
+        Prefetch(
+            'tasks',
+            # % tiến độ dự án phải khớp công thức dùng ở trang Dự án (progress_percent_of_tasks/leaf_progress,
+            # theo checklist/việc con) — không tự tính lại theo kiểu đếm phẳng ở frontend (dễ lệch số).
+            queryset=Task.objects.filter(parent__isnull=True).prefetch_related('checklist_items', 'children__checklist_items'),
+            to_attr='top_tasks',
+        ),
+    )
     data = [
         {
             'id': str(p.id),
@@ -131,6 +150,7 @@ def project_options(request):
             'company_id': str(p.company_id),
             'department_id': str(p.department_id) if p.department_id else None,
             'parent_id': str(p.parent_id) if p.parent_id else None,
+            'progress_percent': progress_percent_of_tasks(p.top_tasks),
         }
         for p in qs
     ]

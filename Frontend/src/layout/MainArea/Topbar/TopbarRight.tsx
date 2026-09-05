@@ -2,7 +2,6 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { NotificationBell } from "./NotificationBell";
 import { GamificationBadge } from "./GamificationBadge";
 import type { UserProfile } from "../../../types/assistant";
-import type { NotificationItem } from "../../../mocks/notifications";
 
 /**
  * TopbarRight
@@ -13,7 +12,6 @@ import type { NotificationItem } from "../../../mocks/notifications";
 export interface TopbarRightProps {
   currentLang: string;
   onChangeLang: (lang: string) => void;
-  notifications: NotificationItem[];
   user: UserProfile;
   online?: boolean;
 }

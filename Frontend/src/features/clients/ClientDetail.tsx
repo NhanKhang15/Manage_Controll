@@ -1,65 +1,58 @@
 import { useEffect, useState } from "react";
-import type { Client, ClientComment, ClientStatus, StageStatus } from "../../types/client";
+import type { ClientItem, ClientStatus, StageStatus, ClientStages } from "../../api/clients";
+import type { EmployeeListItem } from "../../api/employees";
+import type { ProjectOptionItem } from "../../api/projects";
 import { Avatar } from "../../components/ui/Avatar";
 import { Button } from "../../components/ui/Button";
 import { useToast } from "../../components/ui/Toast";
 
 interface ClientDetailProps {
-  client: Client;
-  onUpdateClient: (updated: Client) => void;
+  client: ClientItem;
+  employees: EmployeeListItem[];
+  projects: ProjectOptionItem[];
+  onPatch: (patch: {
+    status?: ClientStatus;
+    owner_id?: string | null;
+    contract_info?: string;
+    notes?: string;
+    source?: string;
+    linked_project_id?: string | null;
+    stages?: Partial<ClientStages>;
+  }) => void;
+  onAddComment: (content: string) => void;
 }
 
-const STAGES_CONFIG: { key: keyof Client["stages"]; label: string }[] = [
+const STAGES_CONFIG: { key: keyof ClientStages; label: string }[] = [
   { key: "rnd", label: "R&D" },
   { key: "define", label: "Define" },
   { key: "suggest", label: "Suggest & Select" },
   { key: "solution", label: "Solution" },
 ];
 
-const OWNERS = ["Đặng Quốc Huy", "Joseph Tuấn", "Lê Xuân Huy", "Trần Hữu Thành", "Hoàng Sơn", "Nguyễn Thu Lan", "Vũ Minh An", "Mai Trang", "Phương Nga", "Duy Khánh"];
-
-export function ClientDetail({ client, onUpdateClient }: ClientDetailProps) {
+export function ClientDetail({ client, employees, projects, onPatch, onAddComment }: ClientDetailProps) {
   const { showToast } = useToast();
-  const [status, setStatus] = useState<ClientStatus>(client.status);
-  const [ownerName, setOwnerName] = useState(client.ownerName);
-  const [contractInfo, setContractInfo] = useState(client.contractInfo || "");
-  const [stages, setStages] = useState(client.stages);
+  const [contractInfo, setContractInfo] = useState(client.contract_info || "");
   const [notes, setNotes] = useState(client.notes || "");
   const [shareEmail, setShareEmail] = useState("");
   const [newComment, setNewComment] = useState("");
-  const [comments, setComments] = useState<ClientComment[]>(client.comments || []);
+  const [linkProjectId, setLinkProjectId] = useState("0");
 
   useEffect(() => {
-    setStatus(client.status);
-    setOwnerName(client.ownerName);
-    setContractInfo(client.contractInfo || "");
-    setStages(client.stages);
+    setContractInfo(client.contract_info || "");
     setNotes(client.notes || "");
-    setComments(client.comments || []);
-  }, [client]);
+    setShareEmail("");
+    setNewComment("");
+    setLinkProjectId("0");
+  }, [client.id]);
 
-  const patchClient = (patch: Partial<Client>) => onUpdateClient({ ...client, ...patch });
-
-  const handleStageChange = (stageKey: keyof Client["stages"], nextStatus: StageStatus) => {
-    const nextStages = { ...stages, [stageKey]: nextStatus };
-    setStages(nextStages);
-    patchClient({ stages: nextStages });
+  const handleStageChange = (stageKey: keyof ClientStages, nextStatus: StageStatus) => {
+    onPatch({ stages: { [stageKey]: nextStatus } });
   };
 
   const handleAddComment = () => {
     if (!newComment.trim()) return;
-    const item: ClientComment = {
-      id: `c_${Date.now()}`,
-      authorName: "Đặng Quốc Huy",
-      content: newComment.trim(),
-      createdAt: "Vừa xong",
-      isInternal: true,
-    };
-    const nextComments = [...comments, item];
-    setComments(nextComments);
+    onAddComment(newComment.trim());
     setNewComment("");
-    patchClient({ comments: nextComments });
-    showToast("Đã thêm trao đổi nội bộ", "success");
   };
 
   return (
@@ -68,7 +61,7 @@ export function ClientDetail({ client, onUpdateClient }: ClientDetailProps) {
         <div>
           <h2 className="cl-d-name">{client.name}</h2>
           <div className="cl-d-sub">
-            {client.contactName} ({client.contactRole}) · {client.phone}
+            {client.contact_name} ({client.contact_role}) · {client.phone}
           </div>
         </div>
         <div className="cl-d-src muted">{client.source || "✍️ Nhập tay"}</div>
@@ -77,14 +70,7 @@ export function ClientDetail({ client, onUpdateClient }: ClientDetailProps) {
       <div className="cl-d-row3">
         <label className="cl-fld">
           Trạng thái
-          <select
-            value={status}
-            onChange={(e) => {
-              const value = e.target.value as ClientStatus;
-              setStatus(value);
-              patchClient({ status: value });
-            }}
-          >
+          <select value={client.status} onChange={(e) => onPatch({ status: e.target.value as ClientStatus })}>
             <option value="lead">Tiềm năng</option>
             <option value="active">Đang làm việc</option>
             <option value="closed">Đã chốt</option>
@@ -93,23 +79,23 @@ export function ClientDetail({ client, onUpdateClient }: ClientDetailProps) {
         </label>
         <label className="cl-fld">
           Người follow
-          <select
-            value={ownerName}
-            onChange={(e) => {
-              setOwnerName(e.target.value);
-              patchClient({ ownerName: e.target.value });
-            }}
-          >
-            {OWNERS.map((owner) => (
-              <option key={owner} value={owner}>
-                {owner}
+          <select value={client.owner_id ?? ""} onChange={(e) => onPatch({ owner_id: e.target.value || null })}>
+            <option value="">— Chưa gán —</option>
+            {employees.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.full_name}
               </option>
             ))}
           </select>
         </label>
         <label className="cl-fld">
           Hợp đồng
-          <input value={contractInfo} placeholder="VD: Đã ký 15/07, giá trị..." onChange={(e) => setContractInfo(e.target.value)} onBlur={() => patchClient({ contractInfo })} />
+          <input
+            value={contractInfo}
+            placeholder="VD: Đã ký 15/07, giá trị..."
+            onChange={(e) => setContractInfo(e.target.value)}
+            onBlur={() => onPatch({ contract_info: contractInfo })}
+          />
         </label>
       </div>
 
@@ -120,13 +106,13 @@ export function ClientDetail({ client, onUpdateClient }: ClientDetailProps) {
             <div key={key} className="cl-stage">
               <div className="cl-stage-name">{label}</div>
               <div className="cl-stage-btns">
-                <button type="button" className={`cl-stbtn ${stages[key] === "pending" ? "on cl-sp" : ""}`} onClick={() => handleStageChange(key, "pending")}>
+                <button type="button" className={`cl-stbtn ${client.stages[key] === "pending" ? "on cl-sp" : ""}`} onClick={() => handleStageChange(key, "pending")}>
                   Chưa
                 </button>
-                <button type="button" className={`cl-stbtn ${stages[key] === "doing" ? "on cl-sd" : ""}`} onClick={() => handleStageChange(key, "doing")}>
+                <button type="button" className={`cl-stbtn ${client.stages[key] === "doing" ? "on cl-sd" : ""}`} onClick={() => handleStageChange(key, "doing")}>
                   Đang làm
                 </button>
-                <button type="button" className={`cl-stbtn ${stages[key] === "done" ? "on cl-sx" : ""}`} onClick={() => handleStageChange(key, "done")}>
+                <button type="button" className={`cl-stbtn ${client.stages[key] === "done" ? "on cl-sx" : ""}`} onClick={() => handleStageChange(key, "done")}>
                   Đã chốt
                 </button>
               </div>
@@ -137,14 +123,25 @@ export function ClientDetail({ client, onUpdateClient }: ClientDetailProps) {
 
       <div className="cl-sec">
         <div className="cl-sec-h">📁 Dự án tương ứng</div>
-        <p className="muted">{client.linkedProjectId ? `Đã gắn dự án ID: ${client.linkedProjectId}` : "Chưa gắn dự án nào."}</p>
+        <p className="muted">{client.linked_project_name ? `Đã gắn dự án: ${client.linked_project_name}` : "Chưa gắn dự án nào."}</p>
         <div className="cl-link-row">
-          <select defaultValue="0">
+          <select value={linkProjectId} onChange={(e) => setLinkProjectId(e.target.value)}>
             <option value="0">+ Gắn dự án có sẵn...</option>
-            <option value="1">Số hóa quy trình bán hàng</option>
-            <option value="2">Tuyển dụng & Onboarding</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
-          <Button variant="ghost" size="sm" onClick={() => showToast("Đã liên kết dự án", "success")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (linkProjectId === "0") return;
+              onPatch({ linked_project_id: linkProjectId });
+              showToast("Đã liên kết dự án", "success");
+            }}
+          >
             Gắn
           </Button>
         </div>
@@ -163,6 +160,8 @@ export function ClientDetail({ client, onUpdateClient }: ClientDetailProps) {
                 showToast("Vui lòng nhập email khách hàng", "danger");
                 return;
               }
+              // TODO: gửi email verify thật — cần cấu hình SMTP + cổng khách hàng công khai
+              // (chưa có hạ tầng email trong hệ thống). Hiện chỉ là demo UI.
               showToast(`Đã gửi lời mời verify đến ${shareEmail}`, "success");
               setShareEmail("");
             }}
@@ -174,18 +173,20 @@ export function ClientDetail({ client, onUpdateClient }: ClientDetailProps) {
 
       <div className="cl-sec">
         <div className="cl-sec-h">📝 Ghi chú nội bộ</div>
-        <textarea className="cl-note" placeholder="Ghi chú nội bộ (khách hàng không thấy)..." value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => patchClient({ notes })} />
+        <textarea className="cl-note" placeholder="Ghi chú nội bộ (khách hàng không thấy)..." value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => onPatch({ notes })} />
       </div>
 
       <div className="cl-sec">
-        <div className="cl-sec-h">💬 Trao đổi <small className="muted">(nội bộ + khách hàng đã verify)</small></div>
+        <div className="cl-sec-h">
+          💬 Trao đổi <small className="muted">(nội bộ + khách hàng đã verify)</small>
+        </div>
         <div className="cl-comments">
-          {comments.length ? (
-            comments.map((comment) => (
+          {client.comments && client.comments.length ? (
+            client.comments.map((comment) => (
               <div key={comment.id} className="cl-comment">
-                <Avatar name={comment.authorName} size={24} src={comment.authorAvatar} />
+                <Avatar name={comment.author_name} size={24} />
                 <div>
-                  <b>{comment.authorName}</b> <small className="muted">· {comment.createdAt}</small>
+                  <b>{comment.author_name}</b> <small className="muted">· {new Date(comment.created_at).toLocaleString("vi-VN")}</small>
                   <p>{comment.content}</p>
                 </div>
               </div>

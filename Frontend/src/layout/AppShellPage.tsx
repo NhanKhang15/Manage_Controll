@@ -4,7 +4,6 @@ import { Shell } from "./Shell";
 import { Overlay } from "../components/ui/Overlay";
 import { mainNavItems, moreNavItems } from "../mocks/navigation";
 import { currentUser } from "../mocks/user";
-import { notifications } from "../mocks/notifications";
 import { useAuth } from "../auth/AuthContext";
 import type { UserProfile } from "../types/assistant";
 
@@ -36,10 +35,10 @@ export function AppShellPage({ initialNavId, children }: AppShellPageProps) {
         role: employee.position_title || "Nhân viên",
         avatarUrl: employee.avatar_url || "/avatar-placeholder.svg",
         email: employee.email,
-        rating: 4.6,
-        level: 1,
-        managedStaff: 4,
-        achievementPoints: 309,
+        rating: employee.rating,
+        level: employee.level,
+        managedStaff: employee.direct_reports_count,
+        achievementPoints: employee.points,
       }
     : currentUser;
 
@@ -69,7 +68,6 @@ export function AppShellPage({ initialNavId, children }: AppShellPageProps) {
             onMenuClick: () => setMobileOpen((v) => !v),
             currentLang: lang,
             onChangeLang: setLang,
-            notifications,
             user,
           },
           mobileNavItems: mainNavItems,

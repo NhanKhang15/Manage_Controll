@@ -1,95 +1,51 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppShellPage } from "../layout/AppShellPage";
 import { Panel } from "../components/ui/Panel";
 import { Button } from "../components/ui/Button";
 import { getAvatarProps } from "../utils/avatar";
-import { apiFetch } from "../api/client";
-
-export interface LeaderboardUser {
-  id: string;
-  rank: number;
-  full_name: string;
-  position_title: string;
-  department: string;
-  level: number;
-  levelTitle: string;
-  points: number;
-  rating: number;
-  isCurrentUser?: boolean;
-}
-
-const LEVEL_MATRIX = [
-  { level: 1, title: "Thử việc", minPoints: "0 điểm", baseSalary: "8 triệu", allowance: "0", benefits: "Theo HĐ" },
-  { level: 2, title: "Chính thức", minPoints: "500 điểm", baseSalary: "12 triệu", allowance: "500k", benefits: "BHXH đầy đủ" },
-  { level: 3, title: "Vững vàng", minPoints: "1,000 điểm", baseSalary: "18 triệu", allowance: "1 triệu", benefits: "+ Thưởng quý" },
-  { level: 4, title: "Nòng cốt", minPoints: "1,800 điểm", baseSalary: "25 triệu", allowance: "2 triệu", benefits: "+ Du lịch năm" },
-  { level: 5, title: "Chuyên gia", minPoints: "2,800 điểm", baseSalary: "35 triệu", allowance: "3 triệu", benefits: "+ ESOP / thưởng cổ phần" },
-  { level: 6, title: "Lãnh đạo", minPoints: "4,000 điểm", baseSalary: "50 triệu", allowance: "4 triệu", benefits: "+ Cổ phần & phúc lợi BOD" },
-  { level: 7, title: "Bậc 7", minPoints: "5,000+ điểm", baseSalary: "70 triệu", allowance: "5 triệu", benefits: "+ Phúc lợi cấp cao" },
-];
+import { useAuth } from "../auth/AuthContext";
+import { getLeaderboard, getLevels, type LeaderboardEntry, type LevelTierItem } from "../api/scoring";
 
 export function LeaderboardPage() {
+  const { employee } = useAuth();
+  const companyId = employee?.companies?.[0]?.id ?? null;
+  const navigate = useNavigate();
+
   const [departmentFilter, setDepartmentFilter] = useState("all");
-  const [departments, setDepartments] = useState<string[]>([]);
-  const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([]);
-  const [myRank, setMyRank] = useState(1);
-  const [myPoints, setMyPoints] = useState(336);
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [levels, setLevels] = useState<LevelTierItem[]>([]);
 
   useEffect(() => {
-    // Fetch real employees and map to leaderboard items
-    apiFetch<any[]>("/employees/")
-      .then((employees) => {
-        if (!Array.isArray(employees)) return;
-
-        const depts = new Set<string>();
-        const list: LeaderboardUser[] = employees.map((emp, index) => {
-          const dept = emp.primary_department_name || "Chưa gán";
-          if (dept !== "Chưa gán") depts.add(dept);
-
-          // Deterministic score calculation based on employee index/id
-          const pts = Math.max(50, 350 - index * 25);
-          const lvl = pts >= 300 ? 7 : pts >= 250 ? 4 : pts >= 180 ? 3 : pts >= 100 ? 2 : 1;
-          const lvlTitle = LEVEL_MATRIX.find((m) => m.level === lvl)?.title || "Chính thức";
-
-          return {
-            id: emp.id,
-            rank: index + 1,
-            full_name: emp.full_name,
-            position_title: emp.position_title || "Chuyên viên",
-            department: dept,
-            level: lvl,
-            levelTitle: lvlTitle,
-            points: pts,
-            rating: Number((4.0 + (index % 10) * 0.1).toFixed(1)),
-            isCurrentUser: index === 0,
-          };
-        });
-
-        setDepartments(Array.from(depts));
-        setLeaderboardData(list);
-
-        const current = list.find((u) => u.isCurrentUser);
-        if (current) {
-          setMyRank(current.rank);
-          setMyPoints(current.points);
-        }
+    if (!companyId) return;
+    Promise.all([getLeaderboard(companyId, "all"), getLevels(companyId)])
+      .then(([lb, lvl]) => {
+        setEntries([...lb].sort((a, b) => b.total_points - a.total_points));
+        setLevels(lvl);
       })
       .catch(() => {
-        setLeaderboardData([]);
+        setEntries([]);
+        setLevels([]);
       });
-  }, []);
+  }, [companyId]);
 
-  const filteredData = leaderboardData.filter((user) => {
-    if (departmentFilter === "all") return true;
-    return user.department === departmentFilter;
-  });
+  const departments = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of entries) if (e.department) set.add(e.department);
+    return Array.from(set).sort();
+  }, [entries]);
+
+  const filteredData = entries.filter((e) => departmentFilter === "all" || e.department === departmentFilter);
+
+  const myEntry = employee ? entries.find((e) => e.id === employee.id) : undefined;
+  const myRank = myEntry ? entries.indexOf(myEntry) + 1 : 0;
 
   return (
     <AppShellPage initialNavId="leaderboard">
       <div className="page-head">
         <h1>🏆 Bảng xếp hạng</h1>
         <p className="page-sub">
-          Điểm &amp; cấp bậc toàn công ty. Điểm = việc hoàn thành (theo độ khó) + đúng hạn + thưởng − phạt, theo công thức CEO cấu hình.
+          Điểm &amp; cấp bậc toàn công ty. Điểm = việc hoàn thành (theo độ khó) + đúng hạn, theo công thức CEO cấu hình.
         </p>
       </div>
 
@@ -100,7 +56,7 @@ export function LeaderboardPage() {
             🥇
           </span>
           <div className="kpi-meta">
-            <b>#{myRank}</b>
+            <b>{myRank ? `#${myRank}` : "—"}</b>
             <small>Hạng của tôi</small>
           </div>
         </div>
@@ -109,8 +65,8 @@ export function LeaderboardPage() {
             ⭐
           </span>
           <div className="kpi-meta">
-            <b>{myPoints}</b>
-            <small>Điểm của tôi · Level 7</small>
+            <b>{myEntry?.total_points ?? 0}</b>
+            <small>Điểm của tôi · Level {myEntry?.level ?? 1}</small>
           </div>
         </div>
         <div className="kpi">
@@ -118,7 +74,7 @@ export function LeaderboardPage() {
             👥
           </span>
           <div className="kpi-meta">
-            <b>{leaderboardData.length || 79}</b>
+            <b>{entries.length}</b>
             <small>Người tham gia</small>
           </div>
         </div>
@@ -141,7 +97,7 @@ export function LeaderboardPage() {
             ))}
           </select>
         </label>
-        <Button variant="ghost" size="sm">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/levels")}>
           ⚙️ Cấp bậc &amp; công thức
         </Button>
       </form>
@@ -164,10 +120,12 @@ export function LeaderboardPage() {
             <tbody>
               {filteredData.map((user) => {
                 const { initials, backgroundColor } = getAvatarProps(user);
-                const rankBadge = user.rank === 1 ? "🥇" : user.rank === 2 ? "🥈" : user.rank === 3 ? "🥉" : `#${user.rank}`;
+                const rank = entries.indexOf(user) + 1;
+                const rankBadge = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
+                const isCurrentUser = employee?.id === user.id;
 
                 return (
-                  <tr key={user.id} style={user.isCurrentUser ? { background: "rgba(79, 110, 247, 0.08)" } : undefined}>
+                  <tr key={user.id} style={isCurrentUser ? { background: "rgba(79, 110, 247, 0.08)" } : undefined}>
                     <td>
                       <b>{rankBadge}</b>
                     </td>
@@ -193,28 +151,34 @@ export function LeaderboardPage() {
                         </span>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>
-                            {user.full_name}{" "}
-                            {user.isCurrentUser && <span className="alert-tag alert-soft" style={{ marginLeft: 4 }}>Bạn</span>}
+                            {user.full_name} {isCurrentUser && <span className="alert-tag alert-soft" style={{ marginLeft: 4 }}>Bạn</span>}
                           </div>
                           <small className="muted" style={{ display: "block", fontSize: 11.5 }}>
-                            {user.position_title}
+                            {user.position_title || "Chuyên viên"}
                           </small>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <span className="dept-tag">{user.department}</span>
+                      <span className="dept-tag">{user.department || "Chưa gán"}</span>
                     </td>
                     <td>
-                      <b>Lv {user.level}</b> <small className="muted">{user.levelTitle}</small>
+                      <b>Lv {user.level}</b> <small className="muted">{user.level_title}</small>
                     </td>
                     <td>
-                      <b>{user.points}</b>
+                      <b>{user.total_points}</b>
                     </td>
-                    <td>{user.rating}</td>
+                    <td>{user.rating.toFixed(1)}</td>
                   </tr>
                 );
               })}
+              {filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="muted" style={{ textAlign: "center", padding: 16 }}>
+                    Chưa có dữ liệu.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -222,31 +186,31 @@ export function LeaderboardPage() {
 
       {/* Panel 2: Level & Benefits Matrix */}
       <Panel style={{ marginTop: 18 }}>
-        <div className="panel-h">Bảng cấp bậc &amp; định mức phúc lợi</div>
+        <div className="panel-h">Thang cấp bậc &amp; phúc lợi</div>
         <div className="table-wrap">
           <table className="task-table">
             <thead>
               <tr>
-                <th>Cấp bậc</th>
+                <th>Level</th>
                 <th>Tên bậc</th>
-                <th>Điểm tối thiểu</th>
-                <th>Lương cứng</th>
+                <th>Mốc điểm</th>
+                <th>Lương cứng/tháng</th>
                 <th>Phụ cấp</th>
-                <th>Phúc lợi bổ sung</th>
+                <th>Phúc lợi</th>
               </tr>
             </thead>
             <tbody>
-              {LEVEL_MATRIX.map((m) => (
-                <tr key={m.level} style={m.level === 7 ? { background: "rgba(16, 185, 129, 0.06)" } : undefined}>
+              {levels.map((m) => (
+                <tr key={m.id} style={m.level === levels.length ? { background: "rgba(16, 185, 129, 0.06)" } : undefined}>
                   <td>
                     <b>Lv {m.level}</b>
                   </td>
-                  <td>{m.title}</td>
-                  <td>{m.minPoints}</td>
+                  <td>{m.name}</td>
+                  <td>{m.min_points.toLocaleString("vi-VN")} điểm</td>
                   <td>
-                    <b>{m.baseSalary}</b>
+                    <b>{(m.base_salary / 1_000_000).toLocaleString("vi-VN")} triệu</b>
                   </td>
-                  <td>{m.allowance}</td>
+                  <td>{m.allowance ? `${(m.allowance / 1_000).toLocaleString("vi-VN")}k` : "0"}</td>
                   <td className="muted">{m.benefits}</td>
                 </tr>
               ))}
@@ -254,7 +218,11 @@ export function LeaderboardPage() {
           </table>
         </div>
         <p className="setting-note" style={{ marginTop: 10 }}>
-          Lên Level → tự động áp <b>lương cứng + phụ cấp + phúc lợi</b> của bậc mới.
+          Lên Level → tự động áp <b>lương cứng + phụ cấp + phúc lợi</b> của bậc mới (theo quy định CEO đặt trong{" "}
+          <a href="/levels" onClick={(e) => { e.preventDefault(); navigate("/levels"); }}>
+            Cấp bậc &amp; công thức
+          </a>
+          ).
         </p>
       </Panel>
     </AppShellPage>

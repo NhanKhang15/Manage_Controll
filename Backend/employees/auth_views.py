@@ -25,9 +25,15 @@ def login_view(request):
     if user is None or not user.is_active:
         return Response({'detail': 'Email hoặc mật khẩu không đúng'}, status=status.HTTP_401_UNAUTHORIZED)
 
+    employee = getattr(user, 'employee', None)
+    if employee is not None and not employee.is_approved:
+        return Response(
+            {'detail': 'Tài khoản đang chờ quản lý duyệt, vui lòng thử lại sau'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
     refresh = RefreshToken.for_user(user)
 
-    employee = getattr(user, 'employee', None)
     if employee is not None:
         company_link = employee.employee_companies.first()
         AuditLog.objects.create(
@@ -75,9 +81,10 @@ def register_view(request):
     # trước khi lưu — cột auth_user.password không bao giờ chứa plaintext.
     user = User.objects.create_user(username=email, email=email, password=password)
 
-    # Không có bước chờ quản lý duyệt: tài khoản tạo xong dùng được ngay
-    # (is_active mặc định True ở cả User lẫn Employee).
-    employee = Employee.objects.create(user=user, full_name=full_name, email=email)
+    # Tài khoản tự đăng ký ở trạng thái chờ duyệt (is_approved=False) — chưa đăng
+    # nhập được cho tới khi người có quyền duyệt trong trang Nhân sự → Chờ duyệt
+    # (xem employees.views.approve_employee, employees.auth_views.login_view).
+    employee = Employee.objects.create(user=user, full_name=full_name, email=email, is_approved=False)
 
     # Tự động gắn nhân viên vào công ty (nếu có company_id hoặc fallback công ty đầu tiên)
     from companies.models import Company
@@ -89,13 +96,8 @@ def register_view(request):
     if target_company:
         EmployeeCompany.objects.get_or_create(employee=employee, company=target_company)
 
-    refresh = RefreshToken.for_user(user)
     return Response(
-        {
-            'access': str(refresh.access_token),
-            'refresh': str(refresh),
-            'employee': EmployeeSerializer(employee).data,
-        },
+        {'detail': 'Đăng ký thành công! Tài khoản của bạn đang chờ quản lý duyệt trước khi đăng nhập được.'},
         status=status.HTTP_201_CREATED,
     )
 

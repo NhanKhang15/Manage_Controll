@@ -2,7 +2,7 @@ import uuid
 from django.db import models
 from projects.models import Project
 from employees.models import Employee
-from companies.models import Department
+from companies.models import Company, Department
 
 
 class Task(models.Model):
@@ -77,6 +77,11 @@ class Task(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def drive_account_company_id(self):
+        company = self.project.company if self.project_id else (self.department.company if self.department_id else None)
+        return company.drive_account_company_id if company else None
+
 
 class TaskChecklistItem(models.Model):
     id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
@@ -130,3 +135,63 @@ class TaskAssignment(models.Model):
 
     def __str__(self):
         return f"{self.task.name} -> {self.employee.full_name} ({self.role})"
+
+
+class TaskTemplate(models.Model):
+    """Mẫu công việc tái sử dụng (trang Mẫu việc, Panel 1) — chưa gắn tạo Task thật,
+    chỉ lưu để tái dùng khi cần chuẩn hoá quy trình lặp lại."""
+    PRIORITY_CHOICES = (('low', 'Thấp'), ('med', 'Trung bình'), ('high', 'Cao'))
+
+    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='task_templates')
+    name = models.CharField(max_length=255)
+    title = models.CharField(max_length=500, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='med')
+    est_hours = models.FloatField(default=0)
+    subtasks = models.JSONField(default=list, blank=True, help_text='Danh sách tên việc con (list[str])')
+    created_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'task_templates'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
+
+class RecurringTaskRule(models.Model):
+    """Việc lặp định kỳ (trang Mẫu việc, Panel 2) — khi task gắn rule này được đánh dấu
+    hoàn thành, tự tạo bản sao kế tiếp với hạn dời theo chu kỳ (xem tasks.recurrence)."""
+    DAILY, WEEKLY, MONTHLY = 'daily', 'weekly', 'monthly'
+    RECURRENCE_CHOICES = ((DAILY, 'Hằng ngày'), (WEEKLY, 'Hằng tuần'), (MONTHLY, 'Hằng tháng'))
+
+    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.OneToOneField(Task, on_delete=models.CASCADE, related_name='recurring_rule')
+    recurrence = models.CharField(max_length=10, choices=RECURRENCE_CHOICES)
+    recur_until = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'recurring_task_rules'
+
+    def __str__(self):
+        return f"{self.task.name} lặp {self.recurrence}"
+
+
+class TaskDependency(models.Model):
+    """Việc `task` bị chặn bởi `depends_on` (trang Mẫu việc, Panel 3) — `task` không
+    được chuyển 'Đang làm'/'Hoàn thành' cho tới khi `depends_on` hoàn thành (xem
+    tasks.views.task_detail)."""
+    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='dependencies')
+    depends_on = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='blocking')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'task_dependencies'
+        unique_together = ('task', 'depends_on')
+
+    def __str__(self):
+        return f"{self.task.name} phụ thuộc {self.depends_on.name}"

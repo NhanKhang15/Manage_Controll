@@ -1,17 +1,20 @@
 import type { Person } from "../../types/people";
+import type { ReactionType } from "../../api/employees";
 import { Avatar } from "../../components/ui/Avatar";
-import { Button } from "../../components/ui/Button";
 import { PersonCard } from "./PersonCard";
+import { OrgTree } from "./OrgTree";
 
 export type ViewMode = "card" | "list" | "org";
 
 interface PeopleGridProps {
   people: Person[];
   viewMode: ViewMode;
+  currentPersonId?: string;
   onBookMeeting: (person: Person) => void;
+  onReact: (person: Person, type: ReactionType) => void;
 }
 
-export function PeopleGrid({ people, viewMode, onBookMeeting }: PeopleGridProps) {
+export function PeopleGrid({ people, viewMode, currentPersonId, onBookMeeting, onReact }: PeopleGridProps) {
   if (viewMode === "list") {
     return (
       <div className="panel people-table-wrap">
@@ -23,8 +26,9 @@ export function PeopleGrid({ people, viewMode, onBookMeeting }: PeopleGridProps)
               <th>Phòng ban</th>
               <th>Email</th>
               <th>SĐT</th>
+              <th>Zalo</th>
               <th>Cấp trên</th>
-              <th />
+              <th>Quản lý</th>
             </tr>
           </thead>
           <tbody>
@@ -41,13 +45,18 @@ export function PeopleGrid({ people, viewMode, onBookMeeting }: PeopleGridProps)
                 <td>
                   <a href={`mailto:${person.email}`}>{person.email}</a>
                 </td>
-                <td>{person.phone || "—"}</td>
-                <td>{person.managerName || "—"}</td>
+                <td>{person.phone ? <a href={`tel:${person.phone}`}>{person.phone}</a> : "—"}</td>
                 <td>
-                  <Button variant="ghost" size="sm" onClick={() => onBookMeeting(person)}>
-                    Đặt lịch
-                  </Button>
+                  {person.zalo ? (
+                    <a href={`https://zalo.me/${person.zalo}`} target="_blank" rel="noopener noreferrer">
+                      {person.zalo}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
                 </td>
+                <td>{person.managerName || "—"}</td>
+                <td>{person.directReportsCount ? `${person.directReportsCount} người` : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -57,28 +66,19 @@ export function PeopleGrid({ people, viewMode, onBookMeeting }: PeopleGridProps)
   }
 
   if (viewMode === "org") {
-    return (
-      <div className="panel org-panel">
-        <div className="panel-h">Sơ đồ tổ chức Vela AI</div>
-        <div className="org-grid">
-          {people.map((person) => (
-            <div key={person.id} className="org-node">
-              <Avatar name={person.name} size={28} src={person.avatarSrc} />
-              <div>
-                <b>{person.name}</b>
-                <small>{person.title}</small>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <OrgTree people={people} />;
   }
 
   return (
     <div className="people-grid">
       {people.map((person) => (
-        <PersonCard key={person.id} person={person} onBookMeeting={onBookMeeting} />
+        <PersonCard
+          key={person.id}
+          person={person}
+          isSelf={person.id === currentPersonId}
+          onBookMeeting={onBookMeeting}
+          onReact={onReact}
+        />
       ))}
     </div>
   );

@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from .models import Task, TaskAssignment, TaskChecklistItem
 from .serializers import TaskFlatSerializer, TaskTreeSerializer, TaskChecklistItemSerializer
 from .notifications import notify_task_event, _task_company_id, _task_recipients
+from .recurrence import spawn_next_occurrence
 from projects.models import Project
 from employees.models import Employee
 from companies.models import Department
@@ -193,6 +194,8 @@ def create_task(request):
 
     drive_file_id = None
     drive_file_url = None
+    task_company = (project.company if project else None) or (department.company if department else None)
+    drive_company_id = task_company.drive_account_company_id if task_company else None
     parent_drive_folder_id = None
     if project and project.drive_folder_id:
         parent_drive_folder_id = project.drive_folder_id
@@ -202,9 +205,9 @@ def create_task(request):
         parent_drive_folder_id = project.company.drive_folder_id
     elif department and department.company and department.company.drive_folder_id:
         parent_drive_folder_id = department.company.drive_folder_id
-    else:
-        from django.conf import settings
-        parent_drive_folder_id = getattr(settings, 'GOOGLE_DRIVE_ROOT_FOLDER_ID', None)
+    elif drive_company_id:
+        from integrations.google_drive import get_root_folder_id
+        parent_drive_folder_id = get_root_folder_id(drive_company_id)
 
     raw_status = request.data.get('status', 'Cần làm')
     task_status = raw_status if raw_status in VALID_STATUSES else 'Cần làm'
@@ -222,7 +225,7 @@ def create_task(request):
                 'status': task_status,
                 'notes': (request.data.get('notes') or '').strip()
             }
-            drive_res = create_task_google_doc(name.strip(), parent_drive_folder_id, meta)
+            drive_res = create_task_google_doc(drive_company_id, name.strip(), parent_drive_folder_id, meta)
             drive_file_id = drive_res.get('id')
             drive_file_url = drive_res.get('webViewLink')
         except Exception as e:
@@ -291,7 +294,7 @@ def task_detail(request, pk):
 
         if task.drive_file_id:
             from integrations.google_drive import trash_drive_item, run_async_drive_op
-            run_async_drive_op(trash_drive_item, task.drive_file_id)
+            run_async_drive_op(trash_drive_item, task.drive_account_company_id, task.drive_file_id)
         task_id_before_delete = task.id
         task.delete()
 
@@ -315,13 +318,27 @@ def task_detail(request, pk):
     data = request.data
     changed_labels = []
 
+    # Phụ thuộc giữa các việc (trang Mẫu việc, Panel 3): việc bị chặn không được
+    # chuyển "Đang làm"/"Hoàn thành" cho tới khi mọi việc nó phụ thuộc đã xong.
+    wants_progress = data.get('status') in ('Đang làm', 'Hoàn thành') or data.get('is_completed') is True
+    if wants_progress:
+        blocking_names = [
+            dep.depends_on.name for dep in task.dependencies.select_related('depends_on').all()
+            if not dep.depends_on.is_completed
+        ]
+        if blocking_names:
+            return Response(
+                {'detail': f"Việc đang bị chặn bởi: {', '.join(blocking_names)} — cần hoàn thành trước."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     if 'name' in data:
         if not data['name'] or not str(data['name']).strip():
             return Response({'detail': 'Tên công việc không được để trống'}, status=status.HTTP_400_BAD_REQUEST)
         new_name = data['name'].strip()
         if new_name != task.name and task.drive_file_id:
             from integrations.google_drive import rename_drive_item, run_async_drive_op
-            run_async_drive_op(rename_drive_item, task.drive_file_id, new_name)
+            run_async_drive_op(rename_drive_item, task.drive_account_company_id, task.drive_file_id, new_name)
         if new_name != task.name:
             changed_labels.append(f"đổi tên thành \"{new_name}\"")
         task.name = new_name
@@ -333,9 +350,11 @@ def task_detail(request, pk):
             changed_labels.append(f"trạng thái → {data['status']}")
         task.status = data['status']
 
+    just_completed = False
     if 'is_completed' in data:
         was_completed = task.is_completed
         task.is_completed = data['is_completed']
+        just_completed = task.is_completed and not was_completed
         if task.is_completed and not was_completed:
             task.completed_at = timezone.now()
             changed_labels.append("đánh dấu hoàn thành")
@@ -413,6 +432,9 @@ def task_detail(request, pk):
 
     task.save()
 
+    if just_completed:
+        spawn_next_occurrence(task)
+
     if changed_labels:
         actor = get_employee_from_request(request)
         notif_type = 'task_completed' if task.is_completed and 'is_completed' in data or data.get('status') == 'Hoàn thành' else 'general'
@@ -472,7 +494,7 @@ def reorder_tasks(request):
 
             if task.drive_file_id and target_drive_folder_id:
                 from integrations.google_drive import move_drive_item, run_async_drive_op
-                run_async_drive_op(move_drive_item, task.drive_file_id, target_drive_folder_id)
+                run_async_drive_op(move_drive_item, task.drive_account_company_id, task.drive_file_id, target_drive_folder_id)
 
         elif proj_item:
             target_drive_folder_id = None
@@ -492,7 +514,7 @@ def reorder_tasks(request):
 
             if proj_item.drive_folder_id and target_drive_folder_id:
                 from integrations.google_drive import move_drive_item, run_async_drive_op
-                run_async_drive_op(move_drive_item, proj_item.drive_folder_id, target_drive_folder_id)
+                run_async_drive_op(move_drive_item, proj_item.company.drive_account_company_id, proj_item.drive_folder_id, target_drive_folder_id)
 
     return Response({'detail': 'Reordered successfully'}, status=status.HTTP_200_OK)
 

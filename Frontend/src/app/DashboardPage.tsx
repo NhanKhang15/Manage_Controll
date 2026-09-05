@@ -9,16 +9,17 @@ import { PendingApprovalsPanel } from "../features/dashboard/PendingApprovalsPan
 import { ProjectProgressPanel } from "../features/dashboard/ProjectProgressPanel";
 import { ActivityTimeline } from "../features/dashboard/ActivityTimeline";
 import { currentUser } from "../mocks/user";
-import { businessKpisHardcoded } from "../mocks/dashboard";
 import { formatVietnameseDate, getGreeting } from "../utils/date";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/ui/Toast";
-import { getProjectOptions } from "../api/projects";
+import { getProjectOptions, type ProjectOptionItem } from "../api/projects";
 import { getMyTasks, getTasksList } from "../api/tasks";
 import { getEvents } from "../api/events";
 import { listProposals, formatAmountVi, type Proposal } from "../api/proposals";
 import { getRecentActivity, type ActivityEntry } from "../api/activity";
-import { fromFlatTask, type TaskItem, type ProjectOption } from "../features/tasks/types";
+import { getClients, type ClientItem } from "../api/clients";
+import { fromFlatTask, type TaskItem } from "../features/tasks/types";
+import { colorFromName } from "../utils/color";
 import type { ApprovalItem, DashboardKpiItem, ProjectProgressItem, ActivityItem } from "../types/dashboard";
 
 interface MeetingEvent {
@@ -43,9 +44,7 @@ function formatActivityTime(iso: string): string {
 /**
  * DashboardPage
  * Trang Bảng điều hành tổng quan — dùng khung dùng chung `AppShellPage`.
- * KPI cá nhân + panel Chờ duyệt/Tiến độ dự án/Hoạt động gần đây lấy dữ liệu
- * thật; 4 KPI kinh doanh CRM (Khách hàng/Leads/Hợp đồng) vẫn hardcode — xem
- * mocks/dashboard.ts (Phase 3 chưa làm).
+ * Toàn bộ KPI (cá nhân + kinh doanh CRM) lấy dữ liệu thật từ backend.
  * Thẻ HTML gốc: toàn bộ <body> của trang "Bảng điều hành · Vela AI".
  */
 export function DashboardPage() {
@@ -62,10 +61,11 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [myTasks, setMyTasks] = useState<TaskItem[]>([]);
   const [allTasks, setAllTasks] = useState<TaskItem[]>([]);
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [projects, setProjects] = useState<ProjectOptionItem[]>([]);
   const [meetings, setMeetings] = useState<MeetingEvent[]>([]);
   const [pendingProposals, setPendingProposals] = useState<Proposal[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [clients, setClients] = useState<ClientItem[]>([]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -77,15 +77,17 @@ export function DashboardPage() {
       getEvents(now.getFullYear(), now.getMonth() + 1, companyId),
       listProposals(companyId, "pending"),
       getRecentActivity(companyId, 8),
+      getClients(companyId),
     ])
-      .then(([mine, allRes, projList, events, proposals, acts]) => {
+      .then(([mine, allRes, projList, events, proposals, acts, clientList]) => {
         if (!isMounted) return;
         setMyTasks(mine.map(fromFlatTask));
         setAllTasks(allRes.results.map(fromFlatTask));
-        setProjects(projList.map((p) => ({ id: p.id, name: p.name, status: p.status ?? undefined })));
+        setProjects(projList);
         setMeetings(events as MeetingEvent[]);
         setPendingProposals(proposals);
         setActivity(acts);
+        setClients(clientList);
       })
       .catch(() => showToast("Không tải được dữ liệu bảng điều hành", "danger"))
       .finally(() => {
@@ -120,8 +122,17 @@ export function DashboardPage() {
     (t) => t.completed && t.completedAtIso && new Date(t.completedAtIso).getFullYear() === now.getFullYear() && new Date(t.completedAtIso).getMonth() === now.getMonth()
   ).length;
 
+  const newClientsThisMonth = clients.filter(
+    (c) => new Date(c.created_at).getFullYear() === now.getFullYear() && new Date(c.created_at).getMonth() === now.getMonth()
+  ).length;
+  const leadsCount = clients.filter((c) => c.status === "lead").length;
+  const closedContractsCount = clients.filter((c) => c.status === "closed").length;
+
   const businessKpis: DashboardKpiItem[] = [
-    ...businessKpisHardcoded,
+    { id: "clients", icon: "👥", iconBg: "#0EA5E918", iconColor: "#0EA5E9", value: clients.length, label: "Khách hàng", href: "/clients" },
+    { id: "new-clients", icon: "🌱", iconBg: "#F59E0B18", iconColor: "#F59E0B", value: newClientsThisMonth, label: "KH mới tháng này", href: "/clients" },
+    { id: "leads", icon: "📞", iconBg: "#8B5CF618", iconColor: "#8B5CF6", value: leadsCount, label: "Tiềm năng cần chăm", href: "/clients" },
+    { id: "contracts", icon: "🤝", iconBg: "#10B98118", iconColor: "#10B981", value: closedContractsCount, label: "Đã có hợp đồng", href: "/clients" },
     { id: "running-projects", icon: "🗂️", iconBg: "#4F6EF718", iconColor: "#4F6EF7", value: runningProjects, label: "Dự án đang chạy", href: "/projects" },
     { id: "tasks-done", icon: "✅", iconBg: "#06B6D418", iconColor: "#06B6D4", value: doneThisMonth, label: "Việc xong tháng này", href: "/tasks" },
   ];
@@ -130,18 +141,12 @@ export function DashboardPage() {
     .slice(0, 5)
     .map((p) => ({ id: p.id, title: p.title, amount: formatAmountVi(p.amount) }));
 
-  const progressByProject = new Map<string, { name: string; color: string; total: number; done: number }>();
-  for (const t of allTasks) {
-    if (!t.projectId || !t.projectName) continue;
-    const entry = progressByProject.get(t.projectId) ?? { name: t.projectName, color: t.projectColor, total: 0, done: 0 };
-    entry.total += 1;
-    if (t.completed) entry.done += 1;
-    progressByProject.set(t.projectId, entry);
-  }
-  const projectProgress: ProjectProgressItem[] = Array.from(progressByProject.entries())
-    .map(([id, v]) => ({ id, title: v.name, percent: v.total ? Math.round((v.done / v.total) * 100) : 0, color: v.color }))
-    .sort((a, b) => b.percent - a.percent)
-    .slice(0, 5);
+  // % lấy thẳng từ progress_percent do backend tính (progress_percent_of_tasks, theo checklist/việc con) —
+  // khớp với số hiển thị ở trang Dự án, không tự đếm phẳng theo allTasks (dễ lệch số vì đếm cả việc con lẫn task cha).
+  const projectProgress: ProjectProgressItem[] = [...projects]
+    .sort((a, b) => b.progress_percent - a.progress_percent)
+    .slice(0, 5)
+    .map((p) => ({ id: p.id, title: p.name, percent: p.progress_percent, color: colorFromName(p.name) }));
 
   const myTaskItems = myTasks
     .filter((t) => !t.completed)

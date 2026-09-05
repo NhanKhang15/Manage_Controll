@@ -1,11 +1,11 @@
-import type { Client, ClientStatus, StageStatus } from "../../types/client";
+import type { ClientItem, ClientStatus, StageStatus } from "../../api/clients";
 import { Avatar } from "../../components/ui/Avatar";
 import { Chip } from "../../components/ui/Chip";
 
 interface ClientListProps {
-  clients: Client[];
+  clients: ClientItem[];
   selectedId: string | null;
-  onSelect: (client: Client) => void;
+  onSelect: (client: ClientItem) => void;
 }
 
 const STATUS_CHIP_MAP: Record<ClientStatus, { label: string; variant: "default" | "todo" | "in_progress" | "done"; color?: string }> = {
@@ -51,8 +51,8 @@ export function ClientList({ clients, selectedId, onSelect }: ClientListProps) {
               </span>
             </div>
             <div className="cl-card-owner">
-              <Avatar name={client.ownerName} size={20} src={client.ownerAvatar} />
-              <span>{client.ownerName}</span>
+              <Avatar name={client.owner_name || "?"} size={20} />
+              <span>{client.owner_name || "Chưa gán"}</span>
               <span className="muted">· đang follow</span>
             </div>
           </a>

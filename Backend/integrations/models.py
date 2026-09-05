@@ -36,6 +36,43 @@ class CompanyAISetting(models.Model):
         return f"AI settings - {self.company.name}"
 
 
+class GoogleDriveConfig(models.Model):
+    """Kết nối Google Drive theo TỪNG công ty gốc (pháp nhân đầu nhóm) — mỗi
+    công ty đăng nhập 1 tài khoản Gmail cá nhân riêng qua OAuth (không phải
+    Service Account nữa), đổi độc lập với công ty khác. Công ty con dùng chung
+    kết nối của công ty gốc — xem Company.drive_account_company_id.
+    """
+    id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
+    company = models.OneToOneField(
+        Company,
+        on_delete=models.CASCADE,
+        related_name='drive_config',
+        db_column='company_id',
+    )
+    connected_email = models.CharField(max_length=255, null=True, blank=True)
+    access_token_encrypted = models.TextField(null=True, blank=True)
+    refresh_token_encrypted = models.TextField(null=True, blank=True)
+    token_expiry = models.DateTimeField(null=True, blank=True)
+    root_folder_id = models.CharField(max_length=255, null=True, blank=True)
+    root_folder_url = models.CharField(max_length=500, null=True, blank=True)
+    updated_by = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        db_column='updated_by',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'google_drive_config'
+
+    def __str__(self):
+        return f"Drive config - {self.company.name} ({self.connected_email or 'chưa kết nối'})"
+
+
 class AuditLog(models.Model):
     ACTION_CHOICES = (
         ('create', 'Create'),

@@ -6,6 +6,8 @@ import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../auth/AuthContext";
 import { clearTokens } from "../auth/tokenStorage";
 import { getCompanyAlertSettings, updateCompanyAlertSettings } from "../api/companies";
+import { getGoogleDriveConfig, type GoogleDriveConfigStatus } from "../api/integrations";
+import { GoogleDriveSetupModal } from "../features/settings/GoogleDriveSetupModal";
 
 export function SettingsPage() {
   const { employee } = useAuth();
@@ -14,6 +16,14 @@ export function SettingsPage() {
 
   const [dueSoonDays, setDueSoonDays] = useState(employee?.companies?.[0]?.due_soon_days ?? 2);
   const [savingAlert, setSavingAlert] = useState(false);
+
+  const [driveStatus, setDriveStatus] = useState<GoogleDriveConfigStatus | null>(null);
+  const [driveModalOpen, setDriveModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!companyId) return;
+    getGoogleDriveConfig(companyId).then(setDriveStatus).catch(() => {});
+  }, [companyId]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -157,6 +167,47 @@ export function SettingsPage() {
           </Button>
         </form>
       </Panel>
+
+      {/* Panel: Google Drive */}
+      <Panel>
+        <div className="panel-h">☁️ Google Drive</div>
+        {driveStatus?.is_connected ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 14, marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span className="muted">Tài khoản</span>
+              <b>{driveStatus.connected_email}</b>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span className="muted">Thư mục gốc</span>
+              {driveStatus.root_folder_url ? (
+                <a href={driveStatus.root_folder_url} target="_blank" rel="noreferrer">Mở trên Drive</a>
+              ) : (
+                <b>{driveStatus.root_folder_id || "—"}</b>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+            Chưa kết nối Google Drive — công việc/dự án sẽ không được tạo folder/tài liệu tự động.
+          </p>
+        )}
+        <Button variant="primary" size="sm" onClick={() => setDriveModalOpen(true)}>
+          {driveStatus?.is_connected ? "Đổi tài khoản / thư mục" : "Kết nối Google Drive"}
+        </Button>
+      </Panel>
+
+      {companyId && (
+        <GoogleDriveSetupModal
+          isOpen={driveModalOpen}
+          companyId={companyId}
+          companyName={employee?.companies?.[0]?.name}
+          onClose={() => setDriveModalOpen(false)}
+          onSaved={(res) => {
+            setDriveStatus(res);
+            if (!res.verify_error) showToast("Đã lưu cấu hình Google Drive và đồng bộ lại", "success");
+          }}
+        />
+      )}
 
       {/* Panel 4: Cấu hình tổ chức */}
       <Panel>

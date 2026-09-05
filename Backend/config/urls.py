@@ -4,13 +4,17 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from companies import views as company_views
 from projects import views as project_views
 from tasks import views as task_views
+from tasks import templates_views as task_templates_views
 from employees import views as employee_views
 from employees import auth_views as employee_auth_views
+from employees import scoring_views
 from events import views as event_views
 from meetings import views as meeting_views
 from integrations import views as integrations_views
 from assistant import views as assistant_views
 from proposals import views as proposal_views
+from clients import views as client_views
+from recruitment import views as recruitment_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -42,8 +46,42 @@ urlpatterns = [
     path('api/proposals/', proposal_views.proposals_view, name='proposals'),
     path('api/proposals/<str:pk>/decide/', proposal_views.proposal_decide_view, name='proposal_decide'),
     path('api/employees/', employee_views.get_employees, name='get_employees'),
+    path('api/employees/pending/', employee_views.pending_employees, name='pending_employees'),
+    path('api/employees/<str:pk>/approve/', employee_views.approve_employee, name='approve_employee'),
+    path('api/employees/<str:pk>/reject/', employee_views.reject_employee, name='reject_employee'),
+    path('api/employees/<str:pk>/react/', employee_views.react_to_employee, name='react_to_employee'),
     path('api/departments/', company_views.get_departments, name='get_departments'),
     path('api/departments/<str:pk>/', company_views.delete_department, name='delete_department'),
+
+    # Điểm/Level: Xếp hạng, Bảng vàng, Cấp bậc
+    path('api/scoring/leaderboard/', scoring_views.leaderboard_view, name='scoring_leaderboard'),
+    path('api/scoring/formula/', scoring_views.formula_view, name='scoring_formula'),
+    path('api/scoring/levels/', scoring_views.levels_view, name='scoring_levels'),
+    path('api/scoring/levels/<str:pk>/', scoring_views.level_detail_view, name='scoring_level_detail'),
+    path('api/scoring/recalculate/', scoring_views.recalculate_view, name='scoring_recalculate'),
+
+    # Mẫu việc · Lặp định kỳ · Phụ thuộc
+    path('api/task-templates/', task_templates_views.task_templates_view, name='task_templates'),
+    path('api/task-templates/<str:pk>/', task_templates_views.task_template_detail_view, name='task_template_detail'),
+    path('api/task-recurring/', task_templates_views.recurring_tasks_view, name='recurring_tasks'),
+    path('api/task-recurring/<str:pk>/', task_templates_views.recurring_task_detail_view, name='recurring_task_detail'),
+    path('api/task-dependencies/', task_templates_views.task_dependencies_view, name='task_dependencies'),
+    path('api/task-dependencies/<str:pk>/', task_templates_views.task_dependency_detail_view, name='task_dependency_detail'),
+
+    # Khách hàng (CRM)
+    path('api/clients/', client_views.clients_view, name='clients'),
+    path('api/clients/<str:pk>/', client_views.client_detail_view, name='client_detail'),
+    path('api/clients/<str:pk>/comments/', client_views.client_comments_view, name='client_comments'),
+
+    # Tuyển dụng (ATS)
+    path('api/recruitment/jobs/', recruitment_views.job_postings_view, name='job_postings'),
+    path('api/recruitment/jobs/<str:pk>/', recruitment_views.job_posting_detail_view, name='job_posting_detail'),
+    path('api/recruitment/jobs/<str:pk>/candidates/', recruitment_views.job_candidates_view, name='job_candidates'),
+    path('api/recruitment/candidates/<str:pk>/', recruitment_views.candidate_detail_view, name='candidate_detail'),
+    path('api/recruitment/generate-jd/', recruitment_views.generate_jd_view, name='generate_jd'),
+    # Công khai — trang ứng tuyển không đăng nhập (xem recruitment.views)
+    path('api/recruitment/public/<str:token>/', recruitment_views.public_job_posting_view, name='public_job_posting'),
+    path('api/recruitment/public/<str:token>/apply/', recruitment_views.public_apply_view, name='public_apply'),
 
     # Events & Drivers
     path('api/events/', event_views.get_events, name='get_events'),
@@ -67,6 +105,9 @@ urlpatterns = [
     # AI settings (module AI dùng chung)
     path('api/settings/ai/', integrations_views.ai_settings_view, name='ai_settings'),
     path('api/activity/', integrations_views.recent_activity_view, name='recent_activity'),
+    path('api/integrations/google-drive/config/', integrations_views.google_drive_config_view, name='google_drive_config'),
+    path('api/integrations/google-drive/oauth/start/', integrations_views.google_drive_oauth_start_view, name='google_drive_oauth_start'),
+    path('api/integrations/google-drive/oauth/callback/', integrations_views.google_drive_oauth_callback_view, name='google_drive_oauth_callback'),
 
     # Trợ lý AI (chatbot + tool-calling)
     path('api/assistant/conversations/', assistant_views.conversations_view, name='assistant_conversations'),

@@ -59,6 +59,8 @@ INSTALLED_APPS = [
     'meetings',
     'assistant',
     'proposals',
+    'clients',
+    'recruitment',
 ]
 
 # Celery Configuration
@@ -243,5 +245,15 @@ else:
 
 GOOGLE_DRIVE_ROOT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
 GOOGLE_APPS_SCRIPT_URL = os.getenv("GOOGLE_APPS_SCRIPT_URL")
+
+# Google Drive OAuth ("Đăng nhập bằng Google" theo từng công ty) — đăng ký
+# OAuth Client (Web application) trong Google Cloud Console, thêm
+# GOOGLE_OAUTH_REDIRECT_URI vào "Authorized redirect URIs" của client đó.
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+GOOGLE_OAUTH_REDIRECT_URI = os.getenv(
+    "GOOGLE_OAUTH_REDIRECT_URI",
+    "http://127.0.0.1:8000/api/integrations/google-drive/oauth/callback/",
+)
 
 

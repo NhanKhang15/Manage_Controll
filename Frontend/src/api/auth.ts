@@ -17,6 +17,10 @@ export interface AuthEmployee {
   position_title: string | null;
   is_active: boolean;
   companies: EmployeeCompanyRef[];
+  rating: number;
+  points: number;
+  level: number;
+  direct_reports_count: number;
 }
 
 export interface LoginResponse {
@@ -25,9 +29,7 @@ export interface LoginResponse {
 }
 
 export interface RegisterResponse {
-  access: string;
-  refresh: string;
-  employee: AuthEmployee;
+  detail: string;
 }
 
 export function login(email: string, password: string): Promise<LoginResponse> {

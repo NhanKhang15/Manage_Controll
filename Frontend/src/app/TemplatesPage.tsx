@@ -4,39 +4,30 @@ import { Panel } from "../components/ui/Panel";
 import { Button } from "../components/ui/Button";
 import { useToast } from "../components/ui/Toast";
 import { apiFetch } from "../api/client";
-
-export interface TaskTemplate {
-  id: string;
-  name: string;
-  title: string;
-  description: string;
-  priority: "low" | "med" | "high";
-  estHours: number;
-  subtasks: string[];
-}
-
-export interface RecurringTask {
-  id: string;
-  taskId: string;
-  taskTitle: string;
-  recurrence: "daily" | "weekly" | "monthly";
-  recurUntil?: string;
-}
-
-export interface TaskDependency {
-  id: string;
-  taskId: string;
-  taskTitle: string;
-  dependsOnId: string;
-  dependsOnTitle: string;
-}
+import { useAuth } from "../auth/AuthContext";
+import {
+  getTaskTemplates,
+  createTaskTemplate,
+  deleteTaskTemplate,
+  getRecurringTasks,
+  createRecurringTask,
+  deleteRecurringTask,
+  getTaskDependencies,
+  createTaskDependency,
+  deleteTaskDependency,
+  type TaskTemplateItem,
+  type RecurringTaskItem,
+  type TaskDependencyItem,
+} from "../api/taskTemplates";
 
 export function TemplatesPage() {
+  const { employee } = useAuth();
+  const companyId = employee?.companies?.[0]?.id ?? null;
   const { showToast } = useToast();
   const [tasks, setTasks] = useState<{ id: string; name: string }[]>([]);
-  
+
   // Panel 1: Templates state
-  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
+  const [templates, setTemplates] = useState<TaskTemplateItem[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [tplName, setTplName] = useState("");
   const [tplTitle, setTplTitle] = useState("");
@@ -46,13 +37,13 @@ export function TemplatesPage() {
   const [tplSubtasks, setTplSubtasks] = useState("");
 
   // Panel 2: Recurring tasks state
-  const [recurringList, setRecurringList] = useState<RecurringTask[]>([]);
+  const [recurringList, setRecurringList] = useState<RecurringTaskItem[]>([]);
   const [recurTaskId, setRecurTaskId] = useState("");
-  const [recurCycle, setRecurCycle] = useState<"daily" | "weekly" | "monthly">("daily");
+  const [recurCycle, setRecurCycle] = useState<"" | "daily" | "weekly" | "monthly">("");
   const [recurUntil, setRecurUntil] = useState("");
 
   // Panel 3: Dependencies state
-  const [depList, setDepList] = useState<TaskDependency[]>([]);
+  const [depList, setDepList] = useState<TaskDependencyItem[]>([]);
   const [depTaskId, setDepTaskId] = useState("");
   const [depDependsOnId, setDepDependsOnId] = useState("");
 
@@ -75,57 +66,88 @@ export function TemplatesPage() {
       .catch(() => setTasks([]));
   }, []);
 
+  useEffect(() => {
+    if (!companyId) return;
+    Promise.all([getTaskTemplates(companyId), getRecurringTasks(companyId), getTaskDependencies(companyId)])
+      .then(([tpls, recur, deps]) => {
+        setTemplates(tpls);
+        setRecurringList(recur);
+        setDepList(deps);
+      })
+      .catch(() => showToast("Không tải được dữ liệu mẫu việc", "danger"));
+  }, [companyId, showToast]);
+
   // Handle Save Template
   function handleCreateTemplate(e: FormEvent) {
     e.preventDefault();
-    if (!tplName.trim()) return;
+    if (!tplName.trim() || !companyId) return;
 
-    const newTpl: TaskTemplate = {
-      id: `tpl-${Date.now()}`,
+    createTaskTemplate(companyId, {
       name: tplName.trim(),
       title: tplTitle.trim() || tplName.trim(),
       description: tplDesc.trim(),
       priority: tplPriority,
-      estHours: Number(tplEstHours) || 0,
+      est_hours: Number(tplEstHours) || 0,
       subtasks: tplSubtasks.split("\n").map((s) => s.trim()).filter(Boolean),
-    };
+    })
+      .then((tpl) => {
+        setTemplates((prev) => [tpl, ...prev]);
+        setTplName("");
+        setTplTitle("");
+        setTplDesc("");
+        setTplPriority("med");
+        setTplEstHours(0);
+        setTplSubtasks("");
+        setIsFormOpen(false);
+        showToast("Đã lưu mẫu công việc mới", "success");
+      })
+      .catch((err) => showToast(err instanceof Error ? err.message : "Lưu mẫu thất bại", "danger"));
+  }
 
-    setTemplates((prev) => [...prev, newTpl]);
-    setTplName("");
-    setTplTitle("");
-    setTplDesc("");
-    setTplPriority("med");
-    setTplEstHours(0);
-    setTplSubtasks("");
-    setIsFormOpen(false);
-    showToast("Đã lưu mẫu công việc mới", "success");
+  function handleDeleteTemplate(id: string) {
+    deleteTaskTemplate(id)
+      .then(() => {
+        setTemplates((prev) => prev.filter((t) => t.id !== id));
+        showToast("Đã xóa mẫu", "default");
+      })
+      .catch((err) => showToast(err instanceof Error ? err.message : "Xóa mẫu thất bại", "danger"));
   }
 
   // Handle Recurring Task
   function handleAddRecurring(e: FormEvent) {
     e.preventDefault();
-    if (!recurTaskId) {
+    if (!recurTaskId || !companyId) {
       showToast("Vui lòng chọn việc cần lặp", "default");
       return;
     }
-    const selectedTask = tasks.find((t) => t.id === recurTaskId);
-    const item: RecurringTask = {
-      id: `rec-${Date.now()}`,
-      taskId: recurTaskId,
-      taskTitle: selectedTask ? selectedTask.name : "Công việc",
-      recurrence: recurCycle,
-      recurUntil: recurUntil || undefined,
-    };
-    setRecurringList((prev) => [...prev, item]);
-    setRecurTaskId("");
-    setRecurUntil("");
-    showToast("Đã thiết lập lặp định kỳ", "success");
+    if (!recurCycle) {
+      showToast("Vui lòng chọn chu kỳ lặp", "default");
+      return;
+    }
+    createRecurringTask(companyId, { task_id: recurTaskId, recurrence: recurCycle, recur_until: recurUntil || null })
+      .then((item) => {
+        setRecurringList((prev) => [...prev, item]);
+        setRecurTaskId("");
+        setRecurCycle("");
+        setRecurUntil("");
+        showToast("Đã thiết lập lặp định kỳ", "success");
+      })
+      .catch((err) => showToast(err instanceof Error ? err.message : "Đặt lặp thất bại", "danger"));
+  }
+
+  function handleDeleteRecurring(id: string) {
+    deleteRecurringTask(id)
+      .then(() => {
+        setRecurringList((prev) => prev.filter((r) => r.id !== id));
+        showToast("Đã hủy đặt lặp", "default");
+      })
+      .catch((err) => showToast(err instanceof Error ? err.message : "Hủy lặp thất bại", "danger"));
   }
 
   // Handle Dependency
   function handleAddDependency(e: FormEvent) {
     e.preventDefault();
-    if (!depTaskId || !depDependsOnId) {
+    if (!depTaskId || !depDependsOnId || !companyId) {
       showToast("Vui lòng chọn đủ 2 công việc phụ thuộc", "default");
       return;
     }
@@ -133,20 +155,23 @@ export function TemplatesPage() {
       showToast("Một việc không thể tự phụ thuộc vào chính nó", "default");
       return;
     }
-    const taskObj = tasks.find((t) => t.id === depTaskId);
-    const dependsObj = tasks.find((t) => t.id === depDependsOnId);
+    createTaskDependency(companyId, { task_id: depTaskId, depends_on_id: depDependsOnId })
+      .then((item) => {
+        setDepList((prev) => [...prev, item]);
+        setDepTaskId("");
+        setDepDependsOnId("");
+        showToast("Đã khai báo phụ thuộc công việc", "success");
+      })
+      .catch((err) => showToast(err instanceof Error ? err.message : "Khai báo phụ thuộc thất bại", "danger"));
+  }
 
-    const item: TaskDependency = {
-      id: `dep-${Date.now()}`,
-      taskId: depTaskId,
-      taskTitle: taskObj ? taskObj.name : "Việc bị chặn",
-      dependsOnId: depDependsOnId,
-      dependsOnTitle: dependsObj ? dependsObj.name : "Việc chặn",
-    };
-    setDepList((prev) => [...prev, item]);
-    setDepTaskId("");
-    setDepDependsOnId("");
-    showToast("Đã khai báo phụ thuộc công việc", "success");
+  function handleDeleteDependency(id: string) {
+    deleteTaskDependency(id)
+      .then(() => {
+        setDepList((prev) => prev.filter((d) => d.id !== id));
+        showToast("Đã xóa phụ thuộc", "default");
+      })
+      .catch((err) => showToast(err instanceof Error ? err.message : "Xóa phụ thuộc thất bại", "danger"));
   }
 
   return (
@@ -183,17 +208,10 @@ export function TemplatesPage() {
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{tpl.name}</div>
                   <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                    {tpl.title} • {tpl.subtasks.length} subtasks • {tpl.estHours}h
+                    {tpl.title} • {tpl.subtasks.length} subtasks • {tpl.est_hours}h
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setTemplates((prev) => prev.filter((t) => t.id !== tpl.id));
-                    showToast("Đã xóa mẫu", "default");
-                  }}
-                >
+                <Button size="sm" variant="ghost" onClick={() => handleDeleteTemplate(tpl.id)}>
                   Xóa
                 </Button>
               </div>
@@ -311,6 +329,7 @@ export function TemplatesPage() {
               onChange={(e) => setRecurCycle(e.target.value as any)}
               style={{ padding: "6px 8px", border: "1px solid var(--line)", borderRadius: 8, fontSize: 13 }}
             >
+              <option value="">Tắt lặp</option>
               <option value="daily">Hằng ngày</option>
               <option value="weekly">Hằng tuần</option>
               <option value="monthly">Hằng tháng</option>
@@ -350,20 +369,13 @@ export function TemplatesPage() {
                 }}
               >
                 <div>
-                  <b>{item.taskTitle}</b> • Chu kỳ:{" "}
+                  <b>{item.task_title}</b> • Chu kỳ:{" "}
                   <span className="text-indigo-600 font-medium">
                     {item.recurrence === "daily" ? "Hằng ngày" : item.recurrence === "weekly" ? "Hằng tuần" : "Hằng tháng"}
                   </span>
-                  {item.recurUntil ? ` (đến ${item.recurUntil})` : ""}
+                  {item.recur_until ? ` (đến ${item.recur_until})` : ""}
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setRecurringList((prev) => prev.filter((r) => r.id !== item.id));
-                    showToast("Đã hủy đặt lặp", "default");
-                  }}
-                >
+                <Button size="sm" variant="ghost" onClick={() => handleDeleteRecurring(item.id)}>
                   Xóa
                 </Button>
               </div>
@@ -441,16 +453,9 @@ export function TemplatesPage() {
                 }}
               >
                 <div>
-                  <b>{dep.taskTitle}</b> <span className="muted">phụ thuộc vào →</span> <b>{dep.dependsOnTitle}</b>
+                  <b>{dep.task_title}</b> <span className="muted">phụ thuộc vào →</span> <b>{dep.depends_on_title}</b>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setDepList((prev) => prev.filter((d) => d.id !== dep.id));
-                    showToast("Đã xóa phụ thuộc", "default");
-                  }}
-                >
+                <Button size="sm" variant="ghost" onClick={() => handleDeleteDependency(dep.id)}>
                   Xóa
                 </Button>
               </div>

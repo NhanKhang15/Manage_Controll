@@ -15,7 +15,7 @@ export function SidebarUserCard({ user, collapsed = false }: SidebarUserCardProp
   const { employee } = useAuth();
 
   const name = employee?.full_name || user.name;
-  const role = employee?.position_title || user.role || "Nhân viên";
+  const role = employee?.companies?.[0]?.role_in_company || employee?.position_title || user.role || "Nhân viên";
   const email = employee?.email || user.email || "";
   const avatarUrl = employee?.avatar_url || user.avatarUrl;
 

@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DriveConnectBanner } from "./DriveConnectBanner";
+import { GoogleDriveSetupModal } from "../../settings/GoogleDriveSetupModal";
+import { getGoogleDriveConfig } from "../../../api/integrations";
 import { WorkspaceColumn } from "./WorkspaceColumn";
 import { WorkspaceItem } from "./WorkspaceItem";
 import { WorkspaceDetailPanel } from "./WorkspaceDetailPanel";
@@ -57,6 +59,15 @@ export function WorkspaceBrowser({
   const { employee } = useAuth();
   const authorName = employee?.full_name || currentUser.name;
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id ?? "");
+  const [driveConnected, setDriveConnected] = useState(true);
+  const [driveModalOpen, setDriveModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!companyId) return;
+    getGoogleDriveConfig(companyId)
+      .then((res) => setDriveConnected(res.is_connected))
+      .catch(() => {});
+  }, [companyId]);
   const [taskPath, setTaskPath] = useState<string[]>([]);
   const [internalMessages, setInternalMessages] = useState<Record<string, CommentMessage[]>>({});
   const [sharedMessages, setSharedMessages] = useState<Record<string, CommentMessage[]>>({});
@@ -206,7 +217,19 @@ export function WorkspaceBrowser({
 
   return (
     <>
-      <DriveConnectBanner onConnect={() => showToast("Đang mở kết nối Google Drive...", "default")} />
+      {!driveConnected && <DriveConnectBanner onConnect={() => setDriveModalOpen(true)} />}
+      {companyId && (
+        <GoogleDriveSetupModal
+          isOpen={driveModalOpen}
+          companyId={companyId}
+          companyName={companyName}
+          onClose={() => setDriveModalOpen(false)}
+          onSaved={(res) => {
+            setDriveConnected(res.is_connected);
+            if (!res.verify_error) showToast("Đã kết nối Google Drive và đồng bộ lại", "success");
+          }}
+        />
+      )}
       <div className="workspace">
         <div className="wk-cols">
           <WorkspaceColumn title="Pháp nhân">

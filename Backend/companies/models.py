@@ -31,6 +31,16 @@ class Company(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def drive_account_company_id(self):
+        """Công ty con dùng chung tài khoản Google Drive của công ty gốc (root)
+        trong nhóm pháp nhân — mỗi tài khoản Drive (Gmail cá nhân) gắn ở cấp
+        công ty mẹ cao nhất, không phải từng công ty con riêng lẻ."""
+        node = self
+        while node.parent_id:
+            node = node.parent
+        return node.id
+
 
 class Department(models.Model):
     id = models.CharField(max_length=36, primary_key=True, default=uuid.uuid4, editable=False)
